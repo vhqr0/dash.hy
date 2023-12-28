@@ -36,7 +36,7 @@
     (SeqIter self))
 
   (defn __bool__ [self]
-    (none? self.pair))
+    (not (none? self.pair)))
 
   (defn __str__ [self]
     (cond (not (hasattr self "_pair")) (.format "<{}>" self.__class__.__name__)

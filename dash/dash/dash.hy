@@ -245,7 +245,7 @@
 (defn -nth [iterable n]
   (if (sequence? iterable)
       (get iterable n)
-      (--if-let (-drop n iterable) (first it) (raise IndexError))))
+      (first (-nthrest iterable n))))
 
 (defn -nthrest [iterable n] (--if-let (-drop n iterable) it (raise IndexError)))
 
