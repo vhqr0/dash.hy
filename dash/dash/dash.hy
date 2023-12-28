@@ -325,8 +325,8 @@
     (--each iterable (.append (get acc (f it)) it))
     acc))
 
-(defmacro --reduce-by [key-form reduce-form iterable]
-  `(-reduce-by (fn [it] ~key-form) (fn [acc it] ~reduce-form) ~iterable))
+(defmacro --reduce-by [key-form reduce-form default-factory iterable]
+  `(-reduce-by (fn [it] ~key-form) (fn [acc it] ~reduce-form) ~default-factory ~iterable))
 (defn -reduce-by [key-fn reduce-fn default-factory iterable]
   (let [acc (defaultdict default-factory)]
     (--each iterable (let [k (key-fn it)] (setv (get acc k) (reduce-fn (get acc k) it))))
