@@ -16,8 +16,8 @@
 
 (defn cons [first [rest None]] (PairCons first rest))
 (defn seq [[o None]] (cond (cons? o) o (none? o) (NoneCons) True (IterCons o)))
-(defn fn->lazy-seq [lazy-func] (LazyCons lazy-func))
-(defmacro lazy-seq [#* body] `(fn->lazy-seq (fn [] ~@body)))
+(defmacro --lazy-seq [#* body] `(-lazy-seq (fn [] ~@body)))
+(defn -lazy-seq [lazy-func] (LazyCons lazy-func))
 
 (defn pair   [s] (. (seq s) pair))
 (defn empty? [s] (none? (pair s)))
@@ -86,5 +86,5 @@
 
 
 (export
-  :objects [cons? seq? cons seq fn->lazy-seq pair empty? first rest]
-  :macros [lazy-seq])
+  :objects [cons? seq? cons seq -lazy-seq pair empty? first rest]
+  :macros [--lazy-seq])
