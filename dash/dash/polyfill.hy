@@ -12,6 +12,7 @@
 (defn none?       [o] (is o None))
 (defn true?       [o] (is o True))
 (defn false?      [o] (is o False))
+(defn bool?       [o] (isinstance o bool))
 (defn type?       [o] (isinstance o type))
 (defn fn?         [o] (isinstance o function))
 (defn callable?   [o] (isinstance o Callable))
@@ -59,7 +60,7 @@
 
 
 (export
-  :objects [ignore identity none? true? false?
+  :objects [ignore identity none? true? false? bool?
             type? fn? callable? function
             iter? iterable? sized? reversible? sequence?
             symbol? keyword? sexp? symbol keyword sexp
