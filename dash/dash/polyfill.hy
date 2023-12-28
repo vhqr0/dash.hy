@@ -49,9 +49,8 @@
                  (continue))
               (sexp (map replace-recur form)))
           form))
-    `(let [~@bindings]
-       ((fn []
-          (nonlocal ~@names)
+    `((fn []
+        (let [~@bindings]
           (while True
             (return ~(replace-recur form))))))))
 

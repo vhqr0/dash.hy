@@ -27,27 +27,57 @@
         (if (empty? s) acc (recur (rest s) (-thread-last-form x (first s))))))
 
 (defmacro as-> [x name #* body]
-  `(let [~name ~x] ~@(map (fn [it] `(setv ~name ~it)) body) ~name))
+  `(let [~name ~x]
+     ~@(loop [s (seq body)]
+             (unless (empty? s)
+               (yield `(setv ~name ~(first s)))
+               (recur (rest s))))
+     ~name))
 
 (defmacro doto [x #* body]
   (let [$ (hy.gensym)]
-    `(let [~$ ~x] ~@(map (fn [it] (-thread-first-form $ it)) body) ~$)))
+    `(let [~$ ~x]
+       ~@(loop [s (seq body)]
+               (unless (empty? s)
+                 (yield `(-> ~$ ~(first s)))
+                 (recur (rest s))))
+       ~$)))
 
 (defmacro some-> [x #* body]
   (let [$ (hy.gensym)]
-    (loop [s (seq body) acc x]
-          (if (empty? s)
-              acc
-              (recur (rest s)
-                     `(let [~$ ~acc] (unless (none? ~$) ~(-thread-first-form $ (first s)))))))))
+    `(let [~$ ~x]
+       ~@(loop [s (seq body)]
+               (unless (empty? s)
+                 (yield `(unless (none? ~$) (setv ~$ (-> ~$ ~(first s)))))
+                 (recur (rest s))))
+       ~$)))
 
 (defmacro some->> [x #* body]
   (let [$ (hy.gensym)]
-    (loop [s (seq body) acc x]
-          (if (empty? s)
-              acc
-              (recur (rest s)
-                     `(let [~$ ~acc] (unless (none? ~$) ~(-thread-last-form $ (first s)))))))))
+    `(let [~$ ~x]
+       ~@(loop [s (seq body)]
+               (unless (empty? s)
+                 (yield `(unless (none? ~$) (setv ~$ (->> ~$ ~(first s)))))
+                 (recur (rest s))))
+       ~$)))
+
+(defmacro cond-> [x #* clauses]
+  (let [$ (hy.gensym)]
+    `(let [~$ ~x]
+       ~@(loop [s (seq clauses)]
+               (unless (empty? s)
+                 (yield `(when ~(first s) (setv ~$ (-> ~$ ~(first (rest s))))))
+                 (recur (rest (rest s)))))
+       ~$)))
+
+(defmacro cond->> [x #* clauses]
+  (let [$ (hy.gensym)]
+    `(let [~$ ~x]
+       ~@(loop [s (seq clauses)]
+               (unless (empty? s)
+                 (yield `(when ~(first s) (setv ~$ (->> ~$ ~(first (rest s))))))
+                 (recur (rest (rest s)))))
+       ~$)))
 
 
 ;; let macros
@@ -392,7 +422,7 @@
             -partial -rpartial -comp-in -comp -juxt-in -juxt]
   :macros [
            ;; threading macros
-           -> ->> as-> doto some-> some->>
+           -> ->> as-> doto some-> some->> cond-> cond->>
            ;; let macros
            -if-let --if-let -when-let --when-let
            ;; side effects
