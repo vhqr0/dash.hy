@@ -332,6 +332,29 @@
 (defmacro --partition-by [form iterable] `(-partition-by (fn [it] ~form) ~iterable))
 
 
+;; iter trans
+
+(defn -replace [smap iterable] (--map (-get smap it it) iterable))
+
+(defn -distinct [iterable]
+  (loop [s (seq iterable) seen (set)]
+        (unless (empty? s)
+          (let [it (first s)]
+            (if (in it seen)
+                (recur (rest s) seen)
+                (do
+                  (yield it)
+                  (recur (rest s) (doto seen (.add it)))))))))
+
+(defn -dedupe [iterable]
+  (loop [s (seq iterable) pre None]
+        (unless (empty? s)
+          (let [it (first s)]
+            (unless (= it pre)
+              (yield it))
+            (recur (rest s) it)))))
+
+
 ;; iter stat
 
 (defn -count [iterable]
@@ -480,6 +503,9 @@
 (defn -select-keys [o ks]
   (dict (--map #(it (-get o it)) ks)))
 
+(defn -reduce-kv [f init o]
+  (--reduce-from (let [#(k v) it] (f acc k v)) init (-items o)))
+
 (defn -merge-in! [o os]
   (--reduce-from
     (let [#(k v) it] (-assoc! o k v))
@@ -495,13 +521,25 @@
 
 (defn -merge-in [os] (-merge-in! (dict) os))
 (defn -merge-with-in [f os] (-merge-with-in! f (dict) os))
+
 (defn -merge [#* os] (-merge-in os))
 (defn -merge-with [f #* os] (-merge-with-in f os))
 
+(defn -update-keys [o f]
+  (dict (--map (let [#(k v) it] #((f k) v)) (-items o))))
+(defn -update-vals [o f]
+  (dict (--map (let [#(k v) it] #(k (f v))) (-items o))))
+(defn -update-vals! [o f]
+  (--each (-keys o) (-update! o it f)) o)
+
+(defmacro --reduce-kv [form init o] `(-reduce-kv (fn [acc k v] ~form) ~init ~o))
 (defmacro --merge-with-in! [form o os] `(-merge-with-in! (fn [acc it] ~form) ~o ~os))
 (defmacro --merge-with! [form o #* os] `(-merge-with! (fn [acc it] ~form) ~o ~@os))
 (defmacro --merge-with-in [form os] `(-merge-with-in (fn [acc it] ~form) ~os))
 (defmacro --merge-with [form #* os] `(-merge-with (fn [acc it] ~form) ~@os))
+(defmacro --update-keys [o form] `(-update-keys ~o (fn [it] ~form)))
+(defmacro --update-vals [o form] `(-update-vals ~o (fn [it] ~form)))
+(defmacro --update-vals! [o form] `(-update-vals! ~o (fn [it] ~form)))
 
 
 
@@ -523,9 +561,13 @@
             -interleave-in -interleave -interleave-fill-in -interleave-fill -interpose
             ;; iter part
             -nth -nthrest
-            -take -drop -take-while -drop-while -take-nth -drop-nth -unsized-window -sized-window
-            -last -butlast -take-last -drop-last -split-at -split-with
+            -take -drop -take-while -drop-while -take-nth -drop-nth
+            -unsized-window -sized-window
+            -last -butlast -take-last -drop-last
+            -split-at -split-with
             -partition -partition-all -partition-in-steps -partition-all-in-steps -partition-by
+            ;; iter trans
+            -replace -distinct -dedupe
             ;; iter stat
             -count -count-by -frequencies -group-by
             ;; functools
@@ -537,9 +579,10 @@
             -assoc! -dissoc! -update! -assoc-in! -dissoc-in! -update-in!
             -assoc -dissoc -update -assoc-in -dissoc-in -update-in
             ;; dict iter
-            -contains? -get -get-in -items -keys -vals -select-keys
+            -contains? -get -get-in -items -keys -vals -select-keys -reduce-kv
             -merge-in! -merge-with-in! -merge! -merge-with!
             -merge-in -merge-with-in -merge -merge-with
+            -update-keys -update-vals -update-vals!
             ]
   :macros [
            ;; threading macros
@@ -562,5 +605,6 @@
            ;; dict get/set/del
            --updateitem --updateitem-in --update! --update-in! --update --update-in
            ;; dict iter
-           --merge-with-in! --merge-with! --merge-with-in --merge-with
+           --reduce-kv --merge-with-in! --merge-with! --merge-with-in --merge-with
+           --update-keys --update-vals --update-vals!
            ])
