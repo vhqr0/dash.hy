@@ -174,7 +174,7 @@
 
 ;; like cons/pair/empty?/first/rest, but for iterable.
 ;; orig iter should not be used, use iter returned from -pair/-rest.
-;; should always check None value, None is seq, is not iterable.
+;; should always check None value, None is seqable, but is not iterable.
 
 (defn -cons [o iterable] (yield o) (yield-from iterable))
 
@@ -359,13 +359,6 @@
     (--each iterable (.append (get acc (f it)) it))
     acc))
 
-(defmacro --reduce-by [key-form reduce-form default-factory iterable]
-  `(-reduce-by (fn [it] ~key-form) (fn [acc it] ~reduce-form) ~default-factory ~iterable))
-(defn -reduce-by [key-fn reduce-fn default-factory iterable]
-  (let [acc (defaultdict default-factory)]
-    (--each iterable (let [k (key-fn it)] (setv (get acc k) (reduce-fn (get acc k) it))))
-    acc))
-
 
 ;; functools
 
@@ -420,22 +413,6 @@
   (let [#(#* ks k) ks] (-updateitem (-getitem-in o ks) k f #* args #** kwargs)))
 (defmacro --updateitem-in [o ks form] `(-updateitem-in ~o ~ks (fn [it] ~form)))
 
-(defn -contains? [o k]
-  (cond (map? o) (in k o)
-        (sequence? o) (in k (range (len o)))
-        True (raise TypeError)))
-
-(defn -get [o k [d None]]
-  (cond (map? o) (.get o k d)
-        (sequence? o) (if (in k (range (len o))) (-getitem o k) d)
-        True (raise TypeError)))
-
-(defn -get-in [o ks [d None]]
-  (loop [s (seq ks) acc o]
-        (cond (none? acc) d
-              (empty? s) acc
-              True (recur (rest s) (-get acc (first s))))))
-
 (defn -assoc! [o k v] (doto o (-setitem k v)))
 (defn -dissoc! [o k] (doto o (-delitem k)))
 (defn -update! [o k f #* args #** kwargs] (doto o (-updateitem k f #* args #** kwargs)))
@@ -472,6 +449,65 @@
 (defmacro --update-in [o ks form] `(-update-in ~o ~ks (fn [it] ~form)))
 
 
+;; dict iter
+
+(defn -contains? [o k]
+  (cond (map? o) (in k o)
+        (sequence? o) (in k (range (len o)))
+        True (raise TypeError)))
+
+(defn -get [o k [d None]]
+  (cond (map? o) (.get o k d)
+        (sequence? o) (if (in k (range (len o))) (-getitem o k) d)
+        True (raise TypeError)))
+
+(defn -get-in [o ks [d None]]
+  (loop [s (seq ks) acc o]
+        (cond (none? acc) d
+              (empty? s) acc
+              True (recur (rest s) (-get acc (first s))))))
+
+(defn -items [o]
+  (cond (map? o) (.items o)
+        (sequence? o) (enumerate o)
+        True (raise TypeError)))
+
+(defn -keys [o]
+  (cond (map? o) (.keys o)
+        (sequence? o) (range (len o))
+        True (raise TypeError)))
+
+(defn -vals [o]
+  (cond (map? o) (.values o)
+        (sequence? o) o
+        True (raise TypeError)))
+
+(defn -select-keys [o ks]
+  (dict (--map #(it (-get o it)) ks)))
+
+(defn -merge-in! [o os]
+  (--reduce-from
+    (let [#(k v) it] (-assoc! o k v))
+    o (-concat-in (-map -items os))))
+(defn -merge! [o #* os] (-merge-in! o os))
+
+(defn -merge-in [os] (-merge-in! (dict) os))
+(defn -merge [#* os] (-merge-in os))
+
+(defn -merge-with-in! [f o os]
+  (--reduce-from
+    (let [#(k v) it] (if (-contains? o k) (-update! o k f v) (-assoc! o k v)))
+    o (-concat-in (-map -items os))))
+(defn -merge-with! [f o #* os] (-merge-with-in! f o os))
+(defmacro --merge-with-in! [form o os] ~(-merge-with-in! (fn [acc it] ~form) ~o ~os))
+(defmacro --merge-with! [form o #* os] ~(-merge-with! (fn [acc it] ~form) ~o ~@os))
+
+(defn -merge-with-in [f os] (-merge-with-in! f (dict) os))
+(defn -merge-with [f #* os] (-merge-with-in f os))
+(defmacro --merge-with-in [form o os] ~(-merge-with-in (fn [acc it] ~form) ~o ~os))
+(defmacro --merge-with [form o #* os] ~(-merge-with (fn [acc it] ~form) ~o ~@os))
+
+
 
 (export
   :objects [
@@ -497,16 +533,19 @@
             -last -butlast -take-last -drop-last -split-at -split-with
             -partition -partition-in-steps -partition-all -partition-all-in-steps -partition-by
             ;; iter stat
-            -count -count-by -frequencies -group-by -reduce-by
+            -count -count-by -frequencies -group-by
             ;; functools
             -args -kwargs -apply -funcall -trampoline -constantly -complement
             -partial -rpartial -comp-in -comp -juxt-in -juxt
             ;; dict get/set/del
             -getitem -setitem -delitem -updateitem
             -getitem-in -setitem-in -delitem-in -updateitem-in
-            -contains -get -get-in
             -assoc! -dissoc! -update! -assoc-in! -dissoc-in! -update-in!
             -assoc -dissoc -update -assoc-in -dissoc-in -update-in
+            ;; dict iter
+            -contains -get -get-in -items -keys -vals
+            -select-keys -merge-in! -merge! -merge-in -merge
+            -merge-with-in! -merge-with! -merge-with-in -merge-with
             ]
   :macros [
            ;; threading macros
@@ -527,7 +566,9 @@
            ;; iter part
            --take-while --drop-while --split-with --partition-by
            ;; iter stat
-           --count-by --group-by --reduce-by
+           --count-by --group-by
            ;; dict get/set/del
            --updateitem --updateitem-in --update! --update-in! --update --update-in
+           ;; dict iter
+           --merge-with-in! --merge-with! --merge-with-in --merge-with
            ])
