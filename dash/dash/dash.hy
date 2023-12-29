@@ -491,46 +491,43 @@
         (sequence? o) o
         True (raise TypeError)))
 
-(defn -select-keys [o ks]
-  (dict (--map #(it (-get o it)) ks)))
+(defn -select-keys [o ks] (dict (--map #(it (-get o it)) ks)))
 
-(defn -reduce-kv [f init o]
-  (--reduce-from (let [#(k v) it] (f acc k v)) init (-items o)))
+(defn -reduce-items [o f init] (--reduce-from (let [#(k v) it] (f acc k v)) init (-items o)))
 
-(defn -merge-in! [o os]
+(defn -map-items [o f] (dict (--map (let [#(k v) it] (f k v))    (-items o))))
+(defn -map-keys  [o f] (dict (--map (let [#(k v) it] #((f k) v)) (-items o))))
+(defn -map-vals  [o f] (dict (--map (let [#(k v) it] #(k (f v))) (-items o))))
+
+(defn -filter-items [o pred] (dict (--filter (let [#(k v) it] (pred k v)) (-items o))))
+(defn -filter-keys  [o pred] (dict (--filter (let [#(k v) it] (pred k))   (-items o))))
+(defn -filter-vals  [o pred] (dict (--filter (let [#(k v) it] (pred v))   (-items o))))
+
+(defn -merge-in [os]
   (--reduce-from
-    (let [#(k v) it] (-assoc! o k v))
-    o (-concat-in (-map -items os))))
-
-(defn -merge-with-in! [f o os]
-  (--reduce-from
-    (let [#(k v) it] (if (-contains? o k) (-update! o k f v) (-assoc! o k v)))
-    o (-concat-in (-map -items os))))
-
-(defn -merge! [o #* os] (-merge-in! o os))
-(defn -merge-with! [f o #* os] (-merge-with-in! f o os))
-
-(defn -merge-in [os] (-merge-in! (dict) os))
-(defn -merge-with-in [f os] (-merge-with-in! f (dict) os))
+    (let [#(k v) it] (-assoc! acc k v))
+    (dict)
+    (-concat-in (-map -items os))))
 
 (defn -merge [#* os] (-merge-in os))
+
+(defn -merge-with-in [f os]
+  (--reduce-from
+    (let [#(k v) it] (if (-contains? acc k) (-update! acc k f v) (-assoc! acc k v)))
+    (dict)
+    (-concat-in (-map -items os))))
+
 (defn -merge-with [f #* os] (-merge-with-in f os))
 
-(defn -update-keys [o f]
-  (dict (--map (let [#(k v) it] #((f k) v)) (-items o))))
-(defn -update-vals [o f]
-  (dict (--map (let [#(k v) it] #(k (f v))) (-items o))))
-(defn -update-vals! [o f]
-  (--reduce-from (-update! acc it f) o (-keys o)))
-
-(defmacro --reduce-kv [form init o] `(-reduce-kv (fn [acc k v] ~form) ~init ~o))
-(defmacro --merge-with-in! [form o os] `(-merge-with-in! (fn [acc it] ~form) ~o ~os))
-(defmacro --merge-with! [form o #* os] `(-merge-with! (fn [acc it] ~form) ~o ~@os))
+(defmacro --reduce-items [o form init] `(-reduce-items ~o (fn [acc k v] ~form) ~init))
+(defmacro --map-items [o form] `(-map-items ~o (fn [k v] ~form)))
+(defmacro --map-keys [o form] `(-map-keys ~o (fn [it] ~form)))
+(defmacro --map-vals [o form] `(-map-vals ~o (fn [it] ~form)))
+(defmacro --filter-items [o form] `(-filter-items ~o (fn [k v] ~form)))
+(defmacro --filter-keys [o form] `(-filter-keys ~o (fn [it] ~form)))
+(defmacro --filter-vals [o form] `(-filter-vals ~o (fn [it] ~form)))
 (defmacro --merge-with-in [form os] `(-merge-with-in (fn [acc it] ~form) ~os))
 (defmacro --merge-with [form #* os] `(-merge-with (fn [acc it] ~form) ~@os))
-(defmacro --update-keys [o form] `(-update-keys ~o (fn [it] ~form)))
-(defmacro --update-vals [o form] `(-update-vals ~o (fn [it] ~form)))
-(defmacro --update-vals! [o form] `(-update-vals! ~o (fn [it] ~form)))
 
 
 ;; coll op
@@ -636,10 +633,11 @@
             -assoc! -dissoc! -update! -assoc-in! -dissoc-in! -update-in!
             -assoc -dissoc -update -assoc-in -dissoc-in -update-in
             ;; dict iter
-            -contains? -get -get-in -items -keys -vals -select-keys -reduce-kv
-            -merge-in! -merge-with-in! -merge! -merge-with!
-            -merge-in -merge-with-in -merge -merge-with
-            -update-keys -update-vals -update-vals!
+            -contains? -get -get-in -items -keys -vals -select-keys
+            -reduce-items
+            -map-items -map-keys -map-vals
+            -filter-items -filter-keys -filter-vals
+            -merge-in -merge -merge-with-in -merge-with
             ;; coll op
             -emptyitem -intoitem -conjoinitem -disjoinitem -popitem
             -empty! -into! -conj! -disj! -pop!
@@ -667,6 +665,8 @@
            ;; dict get/set/del
            --updateitem --updateitem-in --update! --update-in! --update --update-in
            ;; dict iter
-           --reduce-kv --merge-with-in! --merge-with! --merge-with-in --merge-with
-           --update-keys --update-vals --update-vals!
+           --reduce-items
+           --map-items --map-keys --map-vals
+           --filter-items --filter-keys --filter-vals
+           --merge-with-in --merge-with
            ])
