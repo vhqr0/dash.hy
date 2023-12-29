@@ -498,10 +498,10 @@
 (defn -merge [#* os] (-merge-in os))
 (defn -merge-with [f #* os] (-merge-with-in f os))
 
-(defmacro --merge-with-in! [form o os] ~(-merge-with-in! (fn [acc it] ~form) ~o ~os))
-(defmacro --merge-with! [form o #* os] ~(-merge-with! (fn [acc it] ~form) ~o ~@os))
-(defmacro --merge-with-in [form os] ~(-merge-with-in (fn [acc it] ~form) ~os))
-(defmacro --merge-with [form #* os] ~(-merge-with (fn [acc it] ~form) ~@os))
+(defmacro --merge-with-in! [form o os] `(-merge-with-in! (fn [acc it] ~form) ~o ~os))
+(defmacro --merge-with! [form o #* os] `(-merge-with! (fn [acc it] ~form) ~o ~@os))
+(defmacro --merge-with-in [form os] `(-merge-with-in (fn [acc it] ~form) ~os))
+(defmacro --merge-with [form #* os] `(-merge-with (fn [acc it] ~form) ~@os))
 
 
 
@@ -537,7 +537,7 @@
             -assoc! -dissoc! -update! -assoc-in! -dissoc-in! -update-in!
             -assoc -dissoc -update -assoc-in -dissoc-in -update-in
             ;; dict iter
-            -contains -get -get-in -items -keys -vals -select-keys
+            -contains? -get -get-in -items -keys -vals -select-keys
             -merge-in! -merge-with-in! -merge! -merge-with!
             -merge-in -merge-with-in -merge -merge-with
             ]
