@@ -1,5 +1,5 @@
 (import
-  collections.abc [Iterable Iterator Callable Sized Reversible Sequence])
+  collections.abc [Callable Iterable Iterator Sized Reversible Sequence Set Mapping])
 
 (setv function (type (fn []))
       symbol   hy.models.Symbol
@@ -21,6 +21,8 @@
 (defn sized?      [o] (isinstance o Sized))
 (defn reversible? [o] (isinstance o Reversible))
 (defn sequence?   [o] (isinstance o Sequence))
+(defn set?        [o] (isinstance o Set))
+(defn map?        [o] (isinstance o Mapping))
 (defn symbol?     [o] (isinstance o symbol))
 (defn keyword?    [o] (isinstance o keyword))
 (defn sexp?       [o] (isinstance o sexp))

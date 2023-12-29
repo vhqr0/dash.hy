@@ -172,6 +172,10 @@
 (defn -concat-in [iterables] (--each iterables (yield-from it)))
 (defn -concat [#* iterables] (-concat-in iterables))
 
+;; like cons/pair/empty?/first/rest, but for iterable.
+;; orig iter should not be used, use iter returned from -pair/-rest.
+;; should always check None value, None is seq, is not iterable.
+
 (defn -cons [o iterable] (yield o) (yield-from iterable))
 
 (defn -pair   [iterable] (let [it (iter iterable)] (try #((next it) it) (except [StopIteration]))))
@@ -367,6 +371,8 @@
 
 (defn -args [#* args] args)
 
+(defn -kwargs [#** kwargs] kwargs)
+
 (defn -apply [f args] (f #* args))
 
 (defn -funcall [f #* args #** kwargs] (f #* args #** kwargs))
@@ -384,11 +390,86 @@
   (fn [#* largs #** lkwargs] (f #* largs #* rargs #** lkwargs #** rkwargs)))
 
 (defn -comp-in [fns]
-  (if fns (--reduce (fn [#* args #** kwargs] (acc (it #* args #** kwargs))) fns) identity))
+  (if fns
+      (--reduce (fn [#* args #** kwargs] (acc (it #* args #** kwargs))) fns)
+      identity))
 (defn -comp [#* fns] (-comp-in fns))
 
-(defn -juxt-in [fns] (fn [#* args #** kwargs] (list (--map (it #* args #** kwargs) fns))))
+(defn -juxt-in [fns]
+  (fn [#* args #** kwargs] (list (--map (it #* args #** kwargs) fns))))
 (defn -juxt [#* fns] (-juxt-in fns))
+
+
+;; dict get/set/del
+
+;; like getattr/setattr/delattr
+(defn -getitem [o k] (get o k))
+(defn -setitem [o k v] (setv (get o k) v))
+(defn -delitem [o k] (del (get o k)))
+(defn -updateitem [o k f #* args #** kwargs]
+  (-setitem o k (f (-getitem o k) #* args #** kwargs)))
+(defmacro --udpateitem [o k form] `(-updateitem ~o ~k (fn [it] ~form)))
+
+(defn -getitem-in [o ks]
+  (-reduce-from -getitem o ks))
+(defn -setitem-in [o ks v]
+  (let [#(#* ks k) ks] (-setitem (-getitem-in o ks) k v)))
+(defn -delitem-in [o ks]
+  (let [#(#* ks k) ks] (-delitem (-getitem-in o ks) k)))
+(defn -updateitem-in [o ks f #* args #** kwargs]
+  (let [#(#* ks k) ks] (-updateitem (-getitem-in o ks) k f #* args #** kwargs)))
+(defmacro --updateitem-in [o ks form] `(-updateitem-in ~o ~ks (fn [it] ~form)))
+
+(defn -contains? [o k]
+  (cond (map? o) (in k o)
+        (sequence? o) (in k (range (len o)))
+        True (raise TypeError)))
+
+(defn -get [o k [d None]]
+  (cond (map? o) (.get o k d)
+        (sequence? o) (if (in k (range (len o))) (-getitem o k) d)
+        True (raise TypeError)))
+
+(defn -get-in [o ks [d None]]
+  (loop [s (seq ks) acc o]
+        (cond (none? acc) d
+              (empty? s) acc
+              True (recur (rest s) (-get acc (first s))))))
+
+(defn -assoc! [o k v] (doto o (-setitem k v)))
+(defn -dissoc! [o k] (doto o (-delitem k)))
+(defn -update! [o k f #* args #** kwargs] (doto o (-updateitem k f #* args #** kwargs)))
+(defmacro --update! [o k form] `(-update! ~o ~k (fn [it] ~form)))
+
+(defn -assoc-in! [o ks v] (doto o (-setitem-in ks v)))
+(defn -dissoc-in! [o ks] (doto o (-delitem-in ks)))
+(defn -update-in! [o ks f #* args #** kwargs] (doto o (-updateitem-in ks f #* args #** kwargs)))
+(defmacro --update-in! [o ks form] `(-update-in! ~o ~ks (fn [it] ~form)))
+
+(defn -assoc [o k v] (-assoc! (.copy o) k v))
+(defn -dissoc [o k] (-dissoc! (.copy o) k))
+(defn -update [o k f #* args #** kwargs] (-update! (.copy o) k f #* args #** kwargs))
+(defmacro --update [o k form] `(-update ~o ~k (fn [it] ~form)))
+
+(defn -assoc-in [o ks v]
+  (let [#(k #* ks) ks]
+    (if ks
+        (-update o k -assoc-in ks v)
+        (-assoc o k v))))
+
+(defn -dissoc-in [o ks]
+  (let [#(k #* ks) ks]
+    (if ks
+        (-update o k -dissoc-in ks)
+        (-dissoc o k))))
+
+(defn -update-in [o ks f #* args #** kwargs]
+  (let [#(k #* ks) ks]
+    (if ks
+        (-update o k -update-in ks f #* args #** kwargs)
+        (-update o k f #* args #** kwargs))))
+
+(defmacro --update-in [o ks form] `(-update-in ~o ~ks (fn [it] ~form)))
 
 
 
@@ -418,8 +499,15 @@
             ;; iter stat
             -count -count-by -frequencies -group-by -reduce-by
             ;; functools
-            -args -apply -funcall -trampoline -constantly -complement
-            -partial -rpartial -comp-in -comp -juxt-in -juxt]
+            -args -kwargs -apply -funcall -trampoline -constantly -complement
+            -partial -rpartial -comp-in -comp -juxt-in -juxt
+            ;; dict get/set/del
+            -getitem -setitem -delitem -updateitem
+            -getitem-in -setitem-in -delitem-in -updateitem-in
+            -contains -get -get-in
+            -assoc! -dissoc! -update! -assoc-in! -dissoc-in! -update-in!
+            -assoc -dissoc -update -assoc-in -dissoc-in -update-in
+            ]
   :macros [
            ;; threading macros
            -> ->> as-> doto some-> some->> cond-> cond->>
@@ -439,4 +527,7 @@
            ;; iter part
            --take-while --drop-while --split-with --partition-by
            ;; iter stat
-           --count-by --group-by --reduce-by])
+           --count-by --group-by --reduce-by
+           ;; dict get/set/del
+           --updateitem --updateitem-in --update! --update-in! --update --update-in
+           ])
