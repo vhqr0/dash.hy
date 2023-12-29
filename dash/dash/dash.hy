@@ -139,7 +139,9 @@
 (defn -keep-indexed [f iterable] (-remove none? (-map-indexed f iterable)))
 (defn -annotate [f iterable] (--each iterable (yield #((f it) it))))
 (defn -annotate-indexed [f iterable] (--each-indexed iterable (yield #((f it-index it) it))))
-(defn -some [f iterable] (--each iterable (let [r (f it)] (when r (return r)))) (return None))
+
+(defn -some [f iterable]
+  (loop [s (seq iterable)] (unless (empty? s) (--if-let (f (first s)) it (recur (rest s))))))
 (defn -any? [pred iterable] (not (none? (-some pred iterable))))
 (defn -all? [pred iterable] (none? (-some (-complement pred) iterable)))
 
@@ -199,26 +201,18 @@
 ;; iter mux
 
 (defn -zip-in [iterables]
-  (-when-let [ss (list (-map seq iterables))]
-    (while (-all? (-complement empty?) ss)
-      (yield (list (--map-indexed
-                     (do
-                       (-setitem ss it-index (rest it))
-                       (first it))
-                     ss))))))
+  (loop [ss (list (-map seq iterables))]
+        (when (and ss (not (-any? empty? ss)))
+          (yield (list (-map first ss)))
+          (recur (list (-map rest ss))))))
 
 (defn -zip [#* iterables] (-zip-in iterables))
 
 (defn -zip-fill-in [fill-val iterables]
-  (-when-let [ss (list (-map seq iterables))]
-    (while (-any? (-complement empty?) ss)
-      (yield (list (--map-indexed
-                     (if (empty? it)
-                         fill-val
-                         (do
-                           (-setitem ss it-index (rest it))
-                           (first it)))
-                     ss))))))
+  (loop [ss (list (-map seq iterables))]
+        (when (and ss (not (-all? empty? ss)))
+          (yield (list (--map (if (empty? it) fill-val (first it)) ss)))
+          (recur (list (--map (if (empty? it) it (rest it)) ss))))))
 
 (defn -zip-fill [fill-val #* iterables] (-zip-fill-in fill-val iterables))
 
@@ -364,14 +358,10 @@
 (defn -count-by [pred iterable] (-count (-filter pred iterable)))
 
 (defn -frequencies [iterable]
-  (let [acc (defaultdict (-constantly 0))]
-    (--each iterable (-update! acc it inc))
-    acc))
+  (--reduce-from (-update! acc it inc) (defaultdict (-constantly 0)) iterable))
 
 (defn -group-by [f iterable]
-  (let [acc (defaultdict list)]
-    (--each iterable (-update! acc (f it) -conj! it))
-    acc))
+  (--reduce-from (-update! acc (f it) -conj! it) (defaultdict list) iterable))
 
 (defmacro --count-by [form iterable] `(-count-by (fn [it] ~form) ~iterable))
 (defmacro --group-by [form iterable] `(-group-by (fn [it] ~form) ~iterable))
@@ -531,7 +521,7 @@
 (defn -update-vals [o f]
   (dict (--map (let [#(k v) it] #(k (f v))) (-items o))))
 (defn -update-vals! [o f]
-  (--each (-keys o) (-update! o it f)) o)
+  (--reduce-from (-update! acc it f) o (-keys o)))
 
 (defmacro --reduce-kv [form init o] `(-reduce-kv (fn [acc k v] ~form) ~init ~o))
 (defmacro --merge-with-in! [form o os] `(-merge-with-in! (fn [acc it] ~form) ~o ~os))
