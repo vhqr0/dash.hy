@@ -85,86 +85,77 @@
 (defmacro --if-let [test then else] `(let [it ~test] (if it ~then ~else)))
 (defmacro -if-let [binding then else]
   (let [#(name val) binding] `(let [~name ~val] (if ~name ~then ~else))))
-
 (defmacro --when-let [test #* body] `(let [it ~test] (when it ~@body)))
 (defmacro -when-let [binding #* body]
   (let [#(name val) binding] `(let [~name ~val] (when ~name ~@body))))
 
 
-;; side effects
+;; reduce
 
-(defmacro --each [iterable #* body] `(let [it None] (for [it ~iterable] ~@body)))
-(defn -each [iterable f] (--each iterable (f it)))
+(defmacro --each [iterable #* body]
+  `(let [it None] (for [it ~iterable] ~@body)))
 
 (defmacro --each-indexed [iterable #* body]
-  `(let [#(it-index it) #(None None)] (for [#(it-index it) (enumerate ~iterable)] ~@body)))
-(defn -each-indexed [iterable f] (--each-indexed iterable (f it-index it)))
+  `(let [#(it-index it) #(None None)]
+     (for [#(it-index it) (enumerate ~iterable)]
+       ~@body)))
 
-(defmacro --dotimes [n #* body] `(--each (range ~n) ~@body))
+(defmacro --dotimes [n #* body]
+  `(--each (range ~n) ~@body))
+
+(defmacro --reduce-from [form init iterable]
+  `(let [acc ~init]
+     (--each ~iterable (setv acc ~form))
+     acc))
+
+(defmacro --reductions-from [form init iterable]
+  `(let [acc ~init]
+     (yield acc)
+     (--each ~iterable (do (setv acc ~form) (yield acc)))))
+
+(defn -each [iterable f] (--each iterable (f it)))
+(defn -each-indexed [iterable f] (--each-indexed iterable (f it-index it)))
 (defn -dotimes [n f] (--dotimes n (f it)))
+
+(defn -reduce-from [f init iterable] (--reduce-from (f acc it) init iterable))
+(defn -reductions-from [f init iterable] (--reductions-from (f acc it) init iterable))
+(defn -reduce [f iterable] (let [i (iter iterable)] (-reduce-from f (next i) i)))
+(defn -reductions [f iterable] (let [i (iter iterable)] (-reductions-from f (next i) i)))
+
+(defmacro --reduce [form iterable] `(-reduce (fn [acc it] ~form) ~iterable))
+(defmacro --reductions [form iterable] `(-reductions (fn [acc it] ~form) ~iterable))
 
 
 ;; map filter
 
 (defn -map* [f iterable] (--each iterable (yield (f #* it))))
+(defn -map [f iterable] (--each iterable (yield (f it))))
+(defn -map-indexed [f iterable] (--each-indexed iterable (yield (f it-index it))))
+(defn -filter [pred iterable] (--each iterable (when (pred it) (yield it))))
+(defn -remove [pred iterable] (--each iterable (unless (pred it) (yield it))))
+(defn -mapcat [f iterable] (-concat-in (-map f iterable)))
+(defn -mapcat-indexed [f iterable] (-concat-in (-map-indexed f iterable)))
+(defn -keep [f iterable] (-remove none? (-map f iterable)))
+(defn -keep-indexed [f iterable] (-remove none? (-map-indexed f iterable)))
+(defn -annotate [f iterable] (--each iterable (yield #((f it) it))))
+(defn -annotate-indexed [f iterable] (--each-indexed iterable (yield #((f it-index it) it))))
+(defn -some [f iterable] (--each iterable (let [r (f it)] (when r (return r)))) (return None))
+(defn -any? [pred iterable] (not (none? (-some pred iterable))))
+(defn -all? [pred iterable] (none? (-some (-complement pred) iterable)))
 
 (defmacro --map [form iterable] `(-map (fn [it] ~form) ~iterable))
-(defn -map [f iterable] (--each iterable (yield (f it))))
-
 (defmacro --map-indexed [form iterable] `(-map-indexed (fn [it-index it] ~form) ~iterable))
-(defn -map-indexed [f iterable] (--each-indexed iterable (yield (f it-index it))))
-
 (defmacro --filter [form iterable] `(-filter (fn [it] ~form) ~iterable))
-(defn -filter [pred iterable] (--each iterable (when (pred it) (yield it))))
-
 (defmacro --remove [form iterable] `(-remove (fn [it] ~form) ~iterable))
-(defn -remove [pred iterable] (--each iterable (unless (pred it) (yield it))))
-
 (defmacro --mapcat [form iterable] `(-mapcat (fn [it] ~form) ~iterable))
-(defn -mapcat [f iterable] (-concat-in (-map f iterable)))
-
 (defmacro --mapcat-indexed [form iterable] `(-mapcat-indexed (fn [it-index it] ~form) ~iterable))
-(defn -mapcat-indexed [f iterable] (-concat-in (-map-indexed f iterable)))
-
 (defmacro --keep [form iterable] `(-keep (fn [it] ~form) ~iterable))
-(defn -keep [f iterable] (-remove none? (-map f iterable)))
-
 (defmacro --keep-indexed [form iterable] `(-keep-indexed (fn [it-index it] ~form) ~iterable))
-(defn -keep-indexed [f iterable] (-remove none? (-map-indexed f iterable)))
-
 (defmacro --annotate [form iterable] `(-annotate (fn [it] ~form) ~iterable))
-(defn -annotate [f iterable] (--each iterable (yield #((f it) it))))
-
 (defmacro --annotate-indexed [form iterable] `(-annotate-indexed (fn [it-index it] ~form) ~iterable))
-(defn -annotate-indexed [f iterable] (--each-indexed iterable (yield #((f it-index it) it))))
-
-
-;; reduce
-
-(defmacro --reduce-from [form init iterable] `(let [acc ~init] (--each ~iterable (setv acc ~form)) acc))
-(defn -reduce-from [f init iterable] (--reduce-from (f acc it) init iterable))
-
-(defmacro --reductions-from [form init iterable]
-  `(let [acc ~init] (yield acc) (--each ~iterable (do (setv acc ~form) (yield acc)))))
-(defn -reductions-from [f init iterable] (--reductions-from (f acc it) init iterable))
-
-(defmacro --reduce [form iterable] `(-reduce (fn [acc it] ~form) ~iterable))
-(defn -reduce [f iterable] (let [i (iter iterable)] (-reduce-from f (next i) i)))
-
-(defmacro --reductions [form iterable] `(-reductions (fn [acc it] ~form) ~iterable))
-(defn -reductions [f iterable] (let [i (iter iterable)] (-reductions-from f (next i) i)))
-
-
-;; pred
-
 (defmacro --some [form iterable] `(-some (fn [it] ~form) ~iterable))
-(defn -some [f iterable] (--each iterable (let [r (f it)] (when r (return r)))) (return None))
-
 (defmacro --any? [form iterable] `(-any? (fn [it] ~form) ~iterable))
-(defn -any? [pred iterable] (not (none? (-some pred iterable))))
-
 (defmacro --all? [form iterable] `(-all? (fn [it] ~form it) ~iterable))
-(defn -all? [pred iterable] (none? (-some (-complement pred) iterable)))
 
 
 ;; iter op
@@ -186,9 +177,7 @@
 
 ;; iter gen
 
-(defmacro --iterate [form init] `(-iterate (fn [it] ~form) ~init))
 (defn -iterate [f init] (while True (yield init) (setv init (f init))))
-(defmacro --iterate-n [n form init] `(-iterate-n ~n (fn [it] ~form) ~init))
 (defn -iterate-n [n f init]
   ;;; avoid additional calculations
   ;; (--dotimes n (yield init) (setv init (f init)))
@@ -196,16 +185,16 @@
 
 (defn -repeat [o] (while True (yield o)))
 (defn -repeat-n [n o] (--dotimes n (yield o)))
-
-(defmacro --repeatedly [form] `(-repeatedly (fn [] ~form)))
 (defn -repeatedly [f] (while True (yield (f))))
-(defmacro --repeatedly-n [n form] `(-repeatedly-n ~n (fn [] ~form)))
 (defn -repeatedly-n [n f] (--dotimes n (yield (f))))
-
 (defn -cycle [iterable] (-concat-in (-repeat (seq iterable))))
 (defn -cycle-n [n iterable] (-concat-in (-repeat-n (seq iterable))))
-
 (defn -range [] (-iterate inc 0))
+
+(defmacro --iterate [form init] `(-iterate (fn [it] ~form) ~init))
+(defmacro --iterate-n [n form init] `(-iterate-n ~n (fn [it] ~form) ~init))
+(defmacro --repeatedly [form] `(-repeatedly (fn [] ~form)))
+(defmacro --repeatedly-n [n form] `(-repeatedly-n ~n (fn [] ~form)))
 
 
 ;; iter mux
@@ -261,12 +250,10 @@
   (loop [s (seq iterable) n n]
         (if (or (<= n 0) (empty? s)) s (recur (rest s) (dec n)))))
 
-(defmacro --take-while [form iterable] `(-take-while (fn [it] ~form) ~iterable))
 (defn -take-while [pred iterable]
   (loop [s (seq iterable)]
         (when (and (not (empty? s)) (pred (first s))) (yield (first s)) (recur (rest s)))))
 
-(defmacro --drop-while [form iterable] `(-drop-while (fn [it] ~form) ~iterable))
 (defn -drop-while [pred iterable]
   (loop [s (seq iterable)]
         (if (and (not (empty? s)) (pred (first s))) (recur (rest s)) s)))
@@ -316,7 +303,6 @@
             #(acc s)
             (recur (rest s) (doto acc (.append (first s))) (dec n)))))
 
-(defmacro --split-with [form iterable] `(-split-with (fn [it] ~form) ~iterable))
 (defn -split-with [pred iterable]
   (loop [s (seq iterable) acc (list)]
         (if (or (empty? s) (not (pred (first s))))
@@ -324,14 +310,14 @@
             (recur (rest s) (doto acc (.append (first s)))))))
 
 (defn -partition [n iterable] (-partition-in-steps n n iterable))
+(defn -partition-all [n iterable] (-partition-all-in-steps n n iterable))
+
 (defn -partition-in-steps [n step iterable]
   (--map (list (-take n it)) (-take-nth step (-sized-window n iterable))))
 
-(defn -partition-all [n iterable] (-partition-all-in-steps n n iterable))
 (defn -partition-all-in-steps [n step iterable]
   (--map (list (-take n it)) (-take-nth step (-unsized-window iterable))))
 
-(defmacro --partition-by [form iterable] `(-partition-by (fn [it] ~form) ~iterable))
 (defn -partition-by [f iterable]
   (loop [s (seq (-annotate f iterable))]
         (unless (empty? s)
@@ -340,12 +326,19 @@
             (yield (list (--map (get it 1) acc)))
             (recur ns)))))
 
+(defmacro --take-while [form iterable] `(-take-while (fn [it] ~form) ~iterable))
+(defmacro --drop-while [form iterable] `(-drop-while (fn [it] ~form) ~iterable))
+(defmacro --split-with [form iterable] `(-split-with (fn [it] ~form) ~iterable))
+(defmacro --partition-by [form iterable] `(-partition-by (fn [it] ~form) ~iterable))
+
 
 ;; iter stat
 
-(defn -count [iterable] (if (sized? iterable) (len iterable) (--reduce-from (inc acc) 0 iterable)))
+(defn -count [iterable]
+  (if (sized? iterable)
+      (len iterable)
+      (--reduce-from (inc acc) 0 iterable)))
 
-(defmacro --count-by [form iterable] `(-count-by (fn [it] ~form) ~iterable))
 (defn -count-by [pred iterable] (-count (-filter pred iterable)))
 
 (defn -frequencies [iterable]
@@ -353,11 +346,13 @@
     (--each iterable (+= (get acc it) 1))
     acc))
 
-(defmacro --group-by [form iterable] `(-group-by (fn [it] ~form) ~iterable))
 (defn -group-by [f iterable]
   (let [acc (defaultdict list)]
     (--each iterable (.append (get acc (f it)) it))
     acc))
+
+(defmacro --count-by [form iterable] `(-count-by (fn [it] ~form) ~iterable))
+(defmacro --group-by [form iterable] `(-group-by (fn [it] ~form) ~iterable))
 
 
 ;; functools
@@ -401,7 +396,6 @@
 (defn -delitem [o k] (del (get o k)))
 (defn -updateitem [o k f #* args #** kwargs]
   (-setitem o k (f (-getitem o k) #* args #** kwargs)))
-(defmacro --udpateitem [o k form] `(-updateitem ~o ~k (fn [it] ~form)))
 
 (defn -getitem-in [o ks]
   (-reduce-from -getitem o ks))
@@ -411,22 +405,18 @@
   (let [#(#* ks k) ks] (-delitem (-getitem-in o ks) k)))
 (defn -updateitem-in [o ks f #* args #** kwargs]
   (let [#(#* ks k) ks] (-updateitem (-getitem-in o ks) k f #* args #** kwargs)))
-(defmacro --updateitem-in [o ks form] `(-updateitem-in ~o ~ks (fn [it] ~form)))
 
 (defn -assoc! [o k v] (doto o (-setitem k v)))
 (defn -dissoc! [o k] (doto o (-delitem k)))
 (defn -update! [o k f #* args #** kwargs] (doto o (-updateitem k f #* args #** kwargs)))
-(defmacro --update! [o k form] `(-update! ~o ~k (fn [it] ~form)))
 
 (defn -assoc-in! [o ks v] (doto o (-setitem-in ks v)))
 (defn -dissoc-in! [o ks] (doto o (-delitem-in ks)))
 (defn -update-in! [o ks f #* args #** kwargs] (doto o (-updateitem-in ks f #* args #** kwargs)))
-(defmacro --update-in! [o ks form] `(-update-in! ~o ~ks (fn [it] ~form)))
 
 (defn -assoc [o k v] (-assoc! (.copy o) k v))
 (defn -dissoc [o k] (-dissoc! (.copy o) k))
 (defn -update [o k f #* args #** kwargs] (-update! (.copy o) k f #* args #** kwargs))
-(defmacro --update [o k form] `(-update ~o ~k (fn [it] ~form)))
 
 (defn -assoc-in [o ks v]
   (let [#(k #* ks) ks]
@@ -446,6 +436,11 @@
         (-update o k -update-in ks f #* args #** kwargs)
         (-update o k f #* args #** kwargs))))
 
+(defmacro --udpateitem [o k form] `(-updateitem ~o ~k (fn [it] ~form)))
+(defmacro --updateitem-in [o ks form] `(-updateitem-in ~o ~ks (fn [it] ~form)))
+(defmacro --update! [o k form] `(-update! ~o ~k (fn [it] ~form)))
+(defmacro --update-in! [o ks form] `(-update-in! ~o ~ks (fn [it] ~form)))
+(defmacro --update [o k form] `(-update ~o ~k (fn [it] ~form)))
 (defmacro --update-in [o ks form] `(-update-in ~o ~ks (fn [it] ~form)))
 
 
@@ -489,36 +484,35 @@
   (--reduce-from
     (let [#(k v) it] (-assoc! o k v))
     o (-concat-in (-map -items os))))
-(defn -merge! [o #* os] (-merge-in! o os))
-
-(defn -merge-in [os] (-merge-in! (dict) os))
-(defn -merge [#* os] (-merge-in os))
 
 (defn -merge-with-in! [f o os]
   (--reduce-from
     (let [#(k v) it] (if (-contains? o k) (-update! o k f v) (-assoc! o k v)))
     o (-concat-in (-map -items os))))
+
+(defn -merge! [o #* os] (-merge-in! o os))
 (defn -merge-with! [f o #* os] (-merge-with-in! f o os))
+
+(defn -merge-in [os] (-merge-in! (dict) os))
+(defn -merge-with-in [f os] (-merge-with-in! f (dict) os))
+(defn -merge [#* os] (-merge-in os))
+(defn -merge-with [f #* os] (-merge-with-in f os))
+
 (defmacro --merge-with-in! [form o os] ~(-merge-with-in! (fn [acc it] ~form) ~o ~os))
 (defmacro --merge-with! [form o #* os] ~(-merge-with! (fn [acc it] ~form) ~o ~@os))
-
-(defn -merge-with-in [f os] (-merge-with-in! f (dict) os))
-(defn -merge-with [f #* os] (-merge-with-in f os))
-(defmacro --merge-with-in [form o os] ~(-merge-with-in (fn [acc it] ~form) ~o ~os))
-(defmacro --merge-with [form o #* os] ~(-merge-with (fn [acc it] ~form) ~o ~@os))
+(defmacro --merge-with-in [form os] ~(-merge-with-in (fn [acc it] ~form) ~os))
+(defmacro --merge-with [form #* os] ~(-merge-with (fn [acc it] ~form) ~@os))
 
 
 
 (export
   :objects [
-            ;; side effects
+            ;; reduce
             -each -each-indexed -dotimes
+            -reduce-from -reductions-from -reduce -reductions
             ;; map filter
             -map* -map -map-indexed -filter -remove
             -mapcat -mapcat-indexed -keep -keep-indexed -annotate -annotate-indexed
-            ;; reduce
-            -reduce-from -reductions-from -reduce -reductions
-            ;; pred
             -some -any? -all?
             ;; iter op
             -concat-in -concat -cons -pair -empty? -first -rest
@@ -531,35 +525,33 @@
             -nth -nthrest
             -take -drop -take-while -drop-while -take-nth -drop-nth -unsized-window -sized-window
             -last -butlast -take-last -drop-last -split-at -split-with
-            -partition -partition-in-steps -partition-all -partition-all-in-steps -partition-by
+            -partition -partition-all -partition-in-steps -partition-all-in-steps -partition-by
             ;; iter stat
             -count -count-by -frequencies -group-by
             ;; functools
-            -args -kwargs -apply -funcall -trampoline -constantly -complement
-            -partial -rpartial -comp-in -comp -juxt-in -juxt
+            -args -kwargs -apply -funcall -trampoline
+            -constantly -complement -partial -rpartial -comp-in -comp -juxt-in -juxt
             ;; dict get/set/del
             -getitem -setitem -delitem -updateitem
             -getitem-in -setitem-in -delitem-in -updateitem-in
             -assoc! -dissoc! -update! -assoc-in! -dissoc-in! -update-in!
             -assoc -dissoc -update -assoc-in -dissoc-in -update-in
             ;; dict iter
-            -contains -get -get-in -items -keys -vals
-            -select-keys -merge-in! -merge! -merge-in -merge
-            -merge-with-in! -merge-with! -merge-with-in -merge-with
+            -contains -get -get-in -items -keys -vals -select-keys
+            -merge-in! -merge-with-in! -merge! -merge-with!
+            -merge-in -merge-with-in -merge -merge-with
             ]
   :macros [
            ;; threading macros
            -> ->> as-> doto some-> some->> cond-> cond->>
            ;; let macros
            -if-let --if-let -when-let --when-let
-           ;; side effects
+           ;; reduce
            --each --each-indexed --dotimes
+           --reduce-from --reductions-from --reduce --reductions
            ;; map filter
            --map --map-indexed --filter --remove
            --mapcat --mapcat-indexed --keep --keep-indexed --annotate --annotate-indexed
-           ;; reduce
-           --reduce-from --reductions-from --reduce --reductions
-           ;; pred
            --some --any? --all?
            ;; iter gen
            --iterate --iterate-n --repeatedly --repeatedly-n
