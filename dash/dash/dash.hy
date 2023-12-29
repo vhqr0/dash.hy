@@ -163,25 +163,24 @@
 (defn -concat-in [iterables] (--each iterables (yield-from it)))
 (defn -concat [#* iterables] (-concat-in iterables))
 
-;; like cons/pair/empty?/first/rest, but for iterable.
-;; orig iter should not be used, use iter returned from -pair/-rest.
+;; like cons/seqpair/empty?/first/rest, but for iterable.
+;; orig iter should not be used, use iter returned from -iterpair/-rest.
 ;; should always check None value, None is seqable, but is not iterable.
 
 (defn -cons [o iterable] (yield o) (yield-from iterable))
 
-(defn -pair   [iterable] (let [it (iter iterable)] (try #((next it) it) (except [StopIteration]))))
-(defn -empty? [iterable] (none? (-pair iterable)))
-(defn -first  [iterable] (--when-let (-pair iterable) (get it 0)))
-(defn -rest   [iterable] (--when-let (-pair iterable) (get it 1)))
+(defn -iterpair [iterable] (let [it (iter iterable)] (try #((next it) it) (except [StopIteration]))))
+(defn -empty?   [iterable] (none? (-iterpair iterable)))
+(defn -first    [iterable] (--when-let (-iterpair iterable) (-getitem it 0)))
+(defn -rest     [iterable] (--when-let (-iterpair iterable) (-getitem it 1)))
 
 
 ;; iter gen
 
-(defn -iterate [f init] (while True (yield init) (setv init (f init))))
+(defn -iterate [f init]
+  (loop [acc init] (do (yield acc) (recur (f acc)))))
 (defn -iterate-n [n f init]
-  ;;; avoid additional calculations
-  ;; (--dotimes n (yield init) (setv init (f init)))
-  (when (>= n 1) (yield init) (--dotimes (dec n) (setv init (f init)) (yield init))))
+  (loop [acc init n n] (when (>= n 1) (yield acc) (recur (f acc) (dec n)))))
 
 (defn -repeat [o] (while True (yield o)))
 (defn -repeat-n [n o] (--dotimes n (yield o)))
@@ -204,7 +203,7 @@
     (while (-all? (-complement empty?) ss)
       (yield (list (--map-indexed
                      (do
-                       (setv (get ss it-index) (rest it))
+                       (-setitem ss it-index (rest it))
                        (first it))
                      ss))))))
 
@@ -217,7 +216,7 @@
                      (if (empty? it)
                          fill-val
                          (do
-                           (setv (get ss it-index) (rest it))
+                           (-setitem ss it-index (rest it))
                            (first it)))
                      ss))))))
 
@@ -237,7 +236,7 @@
 
 (defn -nth [iterable n]
   (if (sequence? iterable)
-      (get iterable n)
+      (-getitem iterable n)
       (first (-nthrest iterable n))))
 
 (defn -nthrest [iterable n] (--if-let (-drop n iterable) it (raise IndexError)))
@@ -321,9 +320,9 @@
 (defn -partition-by [f iterable]
   (loop [s (seq (-annotate f iterable))]
         (unless (empty? s)
-          (let [g (get (first s) 0)
-                #(acc ns) (--split-with (= (get it 0) g) s)]
-            (yield (list (--map (get it 1) acc)))
+          (let [g (-getitem (first s) 0)
+                #(acc ns) (--split-with (= (-getitem it 0) g) s)]
+            (yield (list (--map (-getitem it 1) acc)))
             (recur ns)))))
 
 (defmacro --take-while [form iterable] `(-take-while (fn [it] ~form) ~iterable))
@@ -365,8 +364,8 @@
 (defn -count-by [pred iterable] (-count (-filter pred iterable)))
 
 (defn -frequencies [iterable]
-  (let [acc (defaultdict (constantly 0))]
-    (--each iterable (+= (get acc it) 1))
+  (let [acc (defaultdict (-constantly 0))]
+    (--each iterable (-update! acc it inc))
     acc))
 
 (defn -group-by [f iterable]
@@ -404,10 +403,12 @@
   (if fns
       (--reduce (fn [#* args #** kwargs] (acc (it #* args #** kwargs))) fns)
       identity))
+
 (defn -comp [#* fns] (-comp-in fns))
 
 (defn -juxt-in [fns]
   (fn [#* args #** kwargs] (list (--map (it #* args #** kwargs) fns))))
+
 (defn -juxt [#* fns] (-juxt-in fns))
 
 
@@ -418,7 +419,7 @@
 (defn -setitem [o k v] (setv (get o k) v))
 (defn -delitem [o k] (del (get o k)))
 (defn -updateitem [o k f #* args #** kwargs]
-  (-setitem o k (f (-getitem o k) #* args #** kwargs)))
+  (setv (get o k) (f (get o k) #* args #** kwargs)))
 
 (defn -getitem-in [o ks]
   (-reduce-from -getitem o ks))
@@ -612,7 +613,7 @@
             -mapcat -mapcat-indexed -keep -keep-indexed -annotate -annotate-indexed
             -some -any? -all?
             ;; iter op
-            -concat-in -concat -cons -pair -empty? -first -rest
+            -concat-in -concat -cons -iterpair -empty? -first -rest
             ;; iter gen
             -iterate -iterate-n -repeat -repeat-n -repeatedly -repeatedly-n -cycle -cycle-n -range
             ;; iter mux
