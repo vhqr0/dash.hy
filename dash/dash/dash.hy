@@ -548,19 +548,19 @@
 (defn -emptyitem [o]
   (.clear o))
 
-(defn -intoitem [o x]
+(defn -intoitem [o iterable]
   (cond (set? o) (--map (.add o it) iterable)
         (map? o) (--map (let [#(k v) it] (-setitem o k v)) iterable)
         (sequence? o) (--map (.append o it) iterable)
         True (raise TypeError)))
 
-(defn -conjitem [o x]
+(defn -conjoinitem [o x]
   (cond (set? o) (.add o x)
         (map? o) (let [#(k v) x] (-setitem o k v))
         (sequence? o) (.append o x)
         True (raise TypeError)))
 
-(defn -disjitem [o x]
+(defn -disjoinitem [o x]
   (cond (set? o) (.discard o x)
         True (raise TypeError)))
 
@@ -572,8 +572,8 @@
 
 (defn -empty! [o] (doto o (-emptyitem)))
 (defn -into! [o iterable] (doto o (-intoitem iterable)))
-(defn -conj! [o x] (doto o (-conjitem x)))
-(defn -disj! [o x] (doto o (-disjitem x)))
+(defn -conj! [o x] (doto o (-conjoinitem x)))
+(defn -disj! [o x] (doto o (-disjoinitem x)))
 (defn -pop! [o] (doto o (-popitem)))
 
 (defn -peek [o]
@@ -600,6 +600,13 @@
 
 (defn -pop [o]
   (if (seq? o) (rest o) (-pop! (.copy o))))
+
+(defn -keyfn [k] (fn [o] (-get o k)))
+
+(defn -collfn [o]
+  (cond (set? o) (fn [x] (in x o))
+        (or (map? o) (sequence? o)) (fn [x] (-get o x))
+        True (raise TypeError)))
 
 
 
@@ -644,9 +651,10 @@
             -merge-in -merge-with-in -merge -merge-with
             -update-keys -update-vals -update-vals!
             ;; coll op
-            -emptyitem -intoitem -conjitem -disjitem -popitem
+            -emptyitem -intoitem -conjoinitem -disjoinitem -popitem
             -empty! -into! -conj! -disj! -pop!
             -peek -empty -into -conj -disj -pop
+            -keyfn -collfn
             ]
   :macros [
            ;; threading macros
