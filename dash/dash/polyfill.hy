@@ -1,5 +1,5 @@
 (import
-  collections.abc [Callable Iterable Iterator Sized Reversible Sequence Set Mapping])
+  collections.abc [Callable Iterator Iterable Hashable Sized Reversible Sequence Set Mapping])
 
 (setv function (type (fn []))
       symbol   hy.models.Symbol
@@ -18,7 +18,8 @@
 (defn callable?   [o] (isinstance o Callable))
 (defn iter?       [o] (isinstance o Iterator))
 (defn iterable?   [o] (isinstance o Iterable))
-(defn sized?      [o] (isinstance o Sized))
+(defn hashable?   [o] (isinstance o Hashable))
+(defn countable?  [o] (isinstance o Sized))
 (defn reversible? [o] (isinstance o Reversible))
 (defn sequence?   [o] (isinstance o Sequence))
 (defn set?        [o] (isinstance o Set))
@@ -28,6 +29,7 @@
 (defn sexp?       [o] (isinstance o sexp))
 (defn str?        [o] (isinstance o str))
 (defn bytes?      [o] (isinstance o bytes))
+(defn bytearray?  [o] (isinstance o bytearray))
 (defn int?        [o] (isinstance o int))
 (defn float?      [o] (isinstance o float))
 (defn number?     [o] (isinstance o #(int float)))
@@ -63,8 +65,8 @@
 (export
   :objects [ignore identity none? true? false? bool?
             type? fn? callable? function
-            iter? iterable? sized? reversible? sequence? set? map?
+            iter? iterable? hashable? countable? reversible? sequence? set? map?
             symbol? keyword? sexp? symbol keyword sexp
-            str? bytes? int? float? number?
+            str? bytes? bytearray? int? float? number?
             zero? pos? neg? even? odd? inc dec]
   :macros [loop unless])

@@ -358,7 +358,7 @@
 ;; iter stat
 
 (defn -count [iterable]
-  (if (sized? iterable)
+  (if (countable? iterable)
       (len iterable)
       (--reduce-from (inc acc) 0 iterable)))
 
