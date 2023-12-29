@@ -63,7 +63,7 @@
 (export
   :objects [ignore identity none? true? false? bool?
             type? fn? callable? function
-            iter? iterable? sized? reversible? sequence?
+            iter? iterable? sized? reversible? sequence? set? map?
             symbol? keyword? sexp? symbol keyword sexp
             str? bytes? int? float? number?
             zero? pos? neg? even? odd? inc dec]

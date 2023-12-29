@@ -12,7 +12,7 @@
 
 
 (defn cons? [o] (isinstance o Cons))
-(defn seq?  [o] (isinstance o #(None Cons)))
+(defn seq?  [o] (or (none? o) (cons? o)))
 
 (defn cons [first [rest None]] (PairCons first rest))
 (defn seq [[o None]] (cond (cons? o) o (none? o) (NoneCons) True (IterCons o)))

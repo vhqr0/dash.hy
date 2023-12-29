@@ -301,13 +301,13 @@
   (loop [s (seq iterable) acc (list) n n]
         (if (or (<= n 0) (empty? s))
             #(acc s)
-            (recur (rest s) (doto acc (.append (first s))) (dec n)))))
+            (recur (rest s) (-conj! acc (first s)) (dec n)))))
 
 (defn -split-with [pred iterable]
   (loop [s (seq iterable) acc (list)]
         (if (or (empty? s) (not (pred (first s))))
             #(acc s)
-            (recur (rest s) (doto acc (.append (first s)))))))
+            (recur (rest s) (-conj! acc (first s))))))
 
 (defn -partition [n iterable] (-partition-in-steps n n iterable))
 (defn -partition-all [n iterable] (-partition-all-in-steps n n iterable))
@@ -344,7 +344,7 @@
                 (recur (rest s) seen)
                 (do
                   (yield it)
-                  (recur (rest s) (doto seen (.add it)))))))))
+                  (recur (rest s) (-conj! seen it))))))))
 
 (defn -dedupe [iterable]
   (loop [s (seq iterable) pre None]
@@ -371,7 +371,7 @@
 
 (defn -group-by [f iterable]
   (let [acc (defaultdict list)]
-    (--each iterable (.append (get acc (f it)) it))
+    (--each iterable (-update! acc (f it) -conj! it))
     acc))
 
 (defmacro --count-by [form iterable] `(-count-by (fn [it] ~form) ~iterable))
@@ -542,6 +542,65 @@
 (defmacro --update-vals! [o form] `(-update-vals! ~o (fn [it] ~form)))
 
 
+;; coll op
+
+(defn -emptyitem [o]
+  (.clear o))
+
+(defn -intoitem [o x]
+  (cond (set? o) (--map (.add o it) iterable)
+        (map? o) (--map (let [#(k v) it] (-setitem o k v)) iterable)
+        (sequence? o) (--map (.append o it) iterable)
+        True (raise TypeError)))
+
+(defn -conjitem [o x]
+  (cond (set? o) (.add o x)
+        (map? o) (let [#(k v) x] (-setitem o k v))
+        (sequence? o) (.append o x)
+        True (raise TypeError)))
+
+(defn -disjitem [o x]
+  (cond (set? o) (.discard o x)
+        True (raise TypeError)))
+
+(defn -popitem [o]
+  (cond (set? o) (.pop o)
+        (map? o) (.popitem o)
+        (sequence? o) (.pop o)
+        True (raise TypeError)))
+
+(defn -empty! [o] (doto o (-emptyitem)))
+(defn -into! [o iterable] (doto o (-intoitem iterable)))
+(defn -conj! [o x] (doto o (-conjitem x)))
+(defn -disj! [o x] (doto o (-disjitem x)))
+(defn -pop! [o] (doto o (-popitem)))
+
+(defn -peek [o]
+  (cond (sequence? o) (-getitem o -1)
+        (seq? o) (first o)
+        True (raise TypeError)))
+
+(defn -empty [o]
+  (if (seq? o) (seq) (.__class__ o)))
+
+(defn -into [o iterable]
+  (if (seq? o)
+      (loop [s (seq iterable) acc o]
+            (if (empty? s)
+                acc
+                (recur (rest s) (cons (first s) acc))))
+      (-into! (.copy o) iterable)))
+
+(defn -conj [o x]
+  (if (seq? o) (cons x o) (-conj! (.copy o) x)))
+
+(defn -disj [o x]
+  (-disj! (.copy o) x))
+
+(defn -pop [o]
+  (if (seq? o) (rest o) (-pop! (.copy o))))
+
+
 
 (export
   :objects [
@@ -583,6 +642,10 @@
             -merge-in! -merge-with-in! -merge! -merge-with!
             -merge-in -merge-with-in -merge -merge-with
             -update-keys -update-vals -update-vals!
+            ;; coll op
+            -emptyitem -intoitem -conjitem -disjitem -popitem
+            -empty! -into! -conj! -disj! -pop!
+            -peek -empty -into -conj -disj -pop
             ]
   :macros [
            ;; threading macros
