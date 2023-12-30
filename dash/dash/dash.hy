@@ -269,10 +269,19 @@
   (loop [s (seq iterable)]
         (unless (empty? s) (yield s) (recur (rest s)))))
 
+;;; sized window:
+;;
+;; - strict: check len >= n, then yield and step
+;; - loose: yield, then check len >= n+1 and step
+
 (defn -sized-window [n iterable]
   (assert (>= n 1))
   (loop [s (seq iterable) t (-drop (dec n) s)]
         (unless (empty? t) (yield s) (recur (rest s) (rest t)))))
+
+(defn -sized-loose-window [n iterable]
+  (loop [s (seq iterable) t (-drop n s)]
+        (do (yield s) (unless (empty? t) (recur (rest s) (rest t))))))
 
 (defn -last [iterable]
   (loop [s (seq iterable)]
@@ -286,7 +295,7 @@
           (yield (first s))
           (recur (rest s)))))
 
-(defn -take-last [n iterable] (-last (-sized-window n iterable)))
+(defn -take-last [n iterable] (-last (-sized-loose-window n iterable)))
 
 (defn -drop-last [n iterable] (-map first (-sized-window (inc n) iterable)))
 
@@ -302,20 +311,20 @@
             #(acc s)
             (recur (rest s) (-conj! acc (first s))))))
 
-(defn -partition [n iterable] (-partition-in-steps n n iterable))
-(defn -partition-all [n iterable] (-partition-all-in-steps n n iterable))
+(defn -partition [n iterable] (-partition-step n n iterable))
+(defn -partition-all [n iterable] (-partition-all-step n n iterable))
 
-(defn -partition-in-steps [n step iterable]
+(defn -partition-step [n step iterable]
   (--map (list (-take n it)) (-take-nth step (-sized-window n iterable))))
 
-(defn -partition-all-in-steps [n step iterable]
+(defn -partition-all-step [n step iterable]
   (--map (list (-take n it)) (-take-nth step (-unsized-window iterable))))
 
 (defn -partition-by [f iterable]
   (loop [s (seq (-annotate f iterable))]
         (unless (empty? s)
           (let [g (-getitem (first s) 0)
-                #(acc ns) (--split-with (= (-getitem it 0) g) s)]
+                #(acc ns) (-split-with (fn [it] (= (-getitem it 0) g)) s)]
             (yield (list (--map (-getitem it 1) acc)))
             (recur ns)))))
 
@@ -617,10 +626,10 @@
             ;; iter part
             -nth -nthrest
             -take -drop -take-while -drop-while -take-nth -drop-nth
-            -unsized-window -sized-window
+            -unsized-window -sized-window -sized-loose-window
             -last -butlast -take-last -drop-last
             -split-at -split-with
-            -partition -partition-all -partition-in-steps -partition-all-in-steps -partition-by
+            -partition -partition-all -partition-step -partition-all-step -partition-by
             ;; iter trans
             -replace -distinct -dedupe
             ;; iter stat

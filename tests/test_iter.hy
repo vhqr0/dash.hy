@@ -124,3 +124,89 @@
     (.assertEqual self (s.concat-str-in (-interpose ":" (-map str (range 5))))
                   "0:1:2:3:4")
     (.assertEqual self (s.concat-str-in (-interpose ":" (range 0))) "")))
+
+(defclass TestIterPart [TestCase]
+  (defn test-take [self]
+    (.assertEqual self (-nth [5 6 7 8 9 10] 2) 7)
+    (.assertEqual self (-nth (range 5 10) 2) 7)
+    (with [_ (.assertRaises self IndexError)]
+      (-nth (range 5 10) 10))
+    (.assertEqual self (list (-take 3 (range 5))) [0 1 2])
+    (.assertEqual self (list (-take 10 (range 5))) [0 1 2 3 4])
+    (.assertEqual self (list (-take 0 (range 5))) [])
+    (.assertEqual self (list (-drop 3 (range 5))) [3 4])
+    (.assertEqual self (list (-drop 10 (range 5))) [])
+    (.assertEqual self (list (-drop 0 (range 5))) [0 1 2 3 4])
+    (.assertEqual self (list (--take-while (<= it 2) (range 5))) [0 1 2])
+    (.assertEqual self (list (--take-while (<= it 5) (range 5))) [0 1 2 3 4])
+    (.assertEqual self (list (--take-while (>= it 5) (range 5))) [])
+    (.assertEqual self (list (--drop-while (<= it 2) (range 5))) [3 4])
+    (.assertEqual self (list (--drop-while (<= it 5) (range 5))) [])
+    (.assertEqual self (list (--drop-while (>= it 5) (range 5))) [0 1 2 3 4])
+    (.assertEqual self (list (-take-nth 3 (range 10))) [0 3 6 9])
+    (.assertEqual self (list (-take-nth 1 (range 5))) [0 1 2 3 4])
+    (.assertEqual self (list (-drop-nth 3 (range 10))) [1 2 4 5 7 8])
+    (.assertEqual self (list (-drop-nth 1 (range 5))) []))
+
+  (defn test-window [self]
+    (.assertEqual self (list (-map first (-unsized-window (range 5)))) [0 1 2 3 4])
+    (.assertEqual self (list (-map first (-sized-window 3 (range 5)))) [0 1 2])
+    (.assertEqual self (list (-map first (-sized-window 1 (range 5)))) [0 1 2 3 4])
+    (.assertEqual self (list (-map first (-sized-window 10 (range 5)))) [])
+    (.assertEqual self (list (-map first (-sized-loose-window 3 (range 5)))) [0 1 2])
+    (.assertEqual self (list (-map first (-sized-loose-window 1 (range 5)))) [0 1 2 3 4])
+    (.assertEqual self (list (-map first (-sized-loose-window 10 (range 5)))) [0]))
+
+  (defn test-last [self]
+    (.assertEqual self (-last (range 5)) 4)
+    (.assertEqual self (-last (range 0)) None)
+    (.assertEqual self (list (-butlast (range 5))) [0 1 2 3])
+    (.assertEqual self (list (-butlast (range 0))) [])
+    (.assertEqual self (list (-take-last 3 (range 5))) [2 3 4])
+    (.assertEqual self (list (-take-last 10 (range 5))) [0 1 2 3 4])
+    (.assertEqual self (list (-take-last 0 (range 5))) [])
+    (.assertEqual self (list (-drop-last 3 (range 5))) [0 1])
+    (.assertEqual self (list (-drop-last 10 (range 5))) [])
+    (.assertEqual self (list (-drop-last 0 (range 5))) [0 1 2 3 4]))
+
+  (defn test-split [self]
+    (let [#(take drop) (-split-at 3 (range 5))]
+      (.assertEqual self take [0 1 2])
+      (.assertEqual self (list drop) [3 4]))
+    (let [#(take drop) (-split-at 10 (range 5))]
+      (.assertEqual self take [0 1 2 3 4])
+      (.assertEqual self (list drop) []))
+    (let [#(take drop) (-split-at 0 (range 5))]
+      (.assertEqual self take [])
+      (.assertEqual self (list drop) [0 1 2 3 4]))
+    (let [#(take drop) (--split-with (<= it 2) (range 5))]
+      (.assertEqual self take [0 1 2])
+      (.assertEqual self (list drop) [3 4]))
+    (let [#(take drop) (--split-with (<= it 5) (range 5))]
+      (.assertEqual self take [0 1 2 3 4])
+      (.assertEqual self (list drop) []))
+    (let [#(take drop) (--split-with (>= it 5) (range 5))]
+      (.assertEqual self take [])
+      (.assertEqual self (list drop) [0 1 2 3 4])))
+
+  (defn test-partition [self]
+    (.assertEqual self (list (-partition 3 (range 10))) [[0 1 2] [3 4 5] [6 7 8]])
+    (.assertEqual self (list (-partition-all 3 (range 10))) [[0 1 2] [3 4 5] [6 7 8] [9]])
+    (.assertEqual self (list (-partition-step 3 2 (range 10)))
+                  [[0 1 2] [2 3 4] [4 5 6] [6 7 8]])
+    (.assertEqual self (list (-partition-all-step 3 2 (range 10)))
+                  [[0 1 2] [2 3 4] [4 5 6] [6 7 8] [8 9]])
+    (.assertEqual self (list (--partition-by (even? it) [2 4 5 6 8])) [[2 4] [5] [6 8]])))
+
+(defclass TestIterMisc [TestCase]
+  (defn test-trans [self]
+    (.assertEqual self (list (-replace {0 "N/A"} [1 0 2 0 3])) [1 "N/A" 2 "N/A" 3])
+    (.assertEqual self (list (-distinct [1 0 2 0 3])) [1 0 2 3])
+    (.assertEqual self (list (-dedupe [1 0 0 2 2 2 0 0 0 0 3 3 3 3 3])) [1 0 2 0 3]))
+
+  (defn test-stat [self]
+    (.assertEqual self (-count (range 10)) 10)
+    (.assertEqual self (--count-by (even? it) (range 10)) 5)
+    (.assertEqual self (-frequencies [1 0 2 0 3]) {0 2  1 1  2 1 3 1})
+    (.assertEqual self (--group-by (even? it) (range 10))
+                  {True [0 2 4 6 8] False [1 3 5 7 9]})))
