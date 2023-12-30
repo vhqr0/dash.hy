@@ -157,7 +157,7 @@
 (defmacro --annotate-indexed [form iterable] `(-annotate-indexed (fn [it-index it] ~form) ~iterable))
 (defmacro --some [form iterable] `(-some (fn [it] ~form) ~iterable))
 (defmacro --any? [form iterable] `(-any? (fn [it] ~form) ~iterable))
-(defmacro --all? [form iterable] `(-all? (fn [it] ~form it) ~iterable))
+(defmacro --all? [form iterable] `(-all? (fn [it] ~form) ~iterable))
 
 
 ;; iter op
@@ -183,14 +183,14 @@
   (loop [acc init] (do (yield acc) (recur (f acc)))))
 (defn -iterate-n [n f init]
   (loop [acc init n n] (when (>= n 1) (yield acc) (recur (f acc) (dec n)))))
+(defn -range [] (-iterate inc 0))
 
 (defn -repeat [o] (while True (yield o)))
 (defn -repeat-n [n o] (--dotimes n (yield o)))
 (defn -repeatedly [f] (while True (yield (f))))
 (defn -repeatedly-n [n f] (--dotimes n (yield (f))))
 (defn -cycle [iterable] (-concat-in (-repeat (seq iterable))))
-(defn -cycle-n [n iterable] (-concat-in (-repeat-n (seq iterable))))
-(defn -range [] (-iterate inc 0))
+(defn -cycle-n [n iterable] (-concat-in (-repeat-n n (seq iterable))))
 
 (defmacro --iterate [form init] `(-iterate (fn [it] ~form) ~init))
 (defmacro --iterate-n [n form init] `(-iterate-n ~n (fn [it] ~form) ~init))
@@ -221,7 +221,7 @@
 
 (defn -interleave-in [iterables] (-concat-in (-zip-in iterables)))
 (defn -interleave [#* iterables] (-interleave-in iterables))
-(defn -interleave-fill-in [fill-val iterables] (-concat (-zip-fill-in fill-val iterables)))
+(defn -interleave-fill-in [fill-val iterables] (-concat-in (-zip-fill-in fill-val iterables)))
 (defn -interleave-fill [fill-val #* iterables] (-interleave-fill-in fill-val iterables))
 (defn -interpose [sep iterable] (-drop 1 (-interleave (-repeat sep) iterable)))
 
@@ -609,7 +609,8 @@
             ;; iter op
             -concat-in -concat -cons -iterpair -empty? -first -rest
             ;; iter gen
-            -iterate -iterate-n -repeat -repeat-n -repeatedly -repeatedly-n -cycle -cycle-n -range
+            -iterate -iterate-n -range
+            -repeat -repeat-n -repeatedly -repeatedly-n -cycle -cycle-n
             ;; iter mux
             -zip-in -zip -zip-fill-in -zip-fill -tee -tee-n
             -interleave-in -interleave -interleave-fill-in -interleave-fill -interpose
