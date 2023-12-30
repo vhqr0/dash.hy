@@ -133,12 +133,11 @@
 (defn -map-indexed [f iterable] (--each-indexed iterable (yield (f it-index it))))
 (defn -filter [pred iterable] (--each iterable (when (pred it) (yield it))))
 (defn -remove [pred iterable] (--each iterable (unless (pred it) (yield it))))
+
 (defn -mapcat [f iterable] (-concat-in (-map f iterable)))
 (defn -mapcat-indexed [f iterable] (-concat-in (-map-indexed f iterable)))
 (defn -keep [f iterable] (-remove none? (-map f iterable)))
 (defn -keep-indexed [f iterable] (-remove none? (-map-indexed f iterable)))
-(defn -annotate [f iterable] (--each iterable (yield #((f it) it))))
-(defn -annotate-indexed [f iterable] (--each-indexed iterable (yield #((f it-index it) it))))
 
 (defn -some [f iterable]
   (loop [s (seq iterable)] (unless (empty? s) (--if-let (f (first s)) it (recur (rest s))))))
@@ -153,8 +152,6 @@
 (defmacro --mapcat-indexed [form iterable] `(-mapcat-indexed (fn [it-index it] ~form) ~iterable))
 (defmacro --keep [form iterable] `(-keep (fn [it] ~form) ~iterable))
 (defmacro --keep-indexed [form iterable] `(-keep-indexed (fn [it-index it] ~form) ~iterable))
-(defmacro --annotate [form iterable] `(-annotate (fn [it] ~form) ~iterable))
-(defmacro --annotate-indexed [form iterable] `(-annotate-indexed (fn [it-index it] ~form) ~iterable))
 (defmacro --some [form iterable] `(-some (fn [it] ~form) ~iterable))
 (defmacro --any? [form iterable] `(-any? (fn [it] ~form) ~iterable))
 (defmacro --all? [form iterable] `(-all? (fn [it] ~form) ~iterable))
@@ -321,7 +318,7 @@
   (--map (list (-take n it)) (-take-nth step (-unsized-window iterable))))
 
 (defn -partition-by [f iterable]
-  (loop [s (seq (-annotate f iterable))]
+  (loop [s (seq (--map #((f it) it) iterable))]
         (unless (empty? s)
           (let [g (-getitem (first s) 0)
                 #(acc ns) (-split-with (fn [it] (= (-getitem it 0) g)) s)]
@@ -613,7 +610,7 @@
             -reduce-from -reductions-from -reduce -reductions
             ;; map filter
             -map* -map -map-indexed -filter -remove
-            -mapcat -mapcat-indexed -keep -keep-indexed -annotate -annotate-indexed
+            -mapcat -mapcat-indexed -keep -keep-indexed
             -some -any? -all?
             ;; iter op
             -concat-in -concat -cons -iterpair -empty? -first -rest
@@ -664,7 +661,7 @@
            --reduce-from --reductions-from --reduce --reductions
            ;; map filter
            --map --map-indexed --filter --remove
-           --mapcat --mapcat-indexed --keep --keep-indexed --annotate --annotate-indexed
+           --mapcat --mapcat-indexed --keep --keep-indexed
            --some --any? --all?
            ;; iter gen
            --iterate --iterate-n --repeatedly --repeatedly-n

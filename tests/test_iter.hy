@@ -43,12 +43,6 @@
     (.assertEqual self (list (--keep (-get it ':a) [{:a 1} {:b 2} {:a 3 :b 4}])) [1 3])
     (.assertEqual self (list (--keep-indexed (-get it it-index) [[0] [1] [2 3 4]])) [0 4]))
 
-  (defn test-annotate [self]
-    (.assertEqual self (list (--annotate (inc it) (range 5)))
-                  [#(1 0) #(2 1) #(3 2) #(4 3) #(5 4)])
-    (.assertEqual self (list (--annotate-indexed (+ it-index it) (range 5 10)))
-                  [#(5 5) #(7 6) #(9 7) #(11 8) #(13 9)]))
-
   (defn test-pred [self]
     (.assertIsNone self (--some (when (even? it) (inc it)) [1 3 5]))
     (.assertEqual self (--some (when (even? it) (inc it)) [2 4 5]) 3)
