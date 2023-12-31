@@ -39,6 +39,12 @@
     (.assertEqual self (list (--mapcat-indexed (-args it-index it) (range 5 10)))
                   [0 5 1 6 2 7 3 8 4 9]))
 
+  (defn test-mapcons [self]
+    (.assertEqual self (list (--mapcons (even? it) (range 5)))
+                  [(cons True 0) (cons False 1) (cons True 2) (cons False 3) (cons True 4)])
+    (.assertEqual self (list (--mapcons-indexed (inc it-index) (range 5)))
+                  [(cons 1 0) (cons 2 1) (cons 3 2) (cons 4 3) (cons 5 4)]))
+
   (defn test-keep [self]
     (.assertEqual self (list (--keep (-get it ':a) [{:a 1} {:b 2} {:a 3 :b 4}])) [1 3])
     (.assertEqual self (list (--keep-indexed (-get it it-index) [[0] [1] [2 3 4]])) [0 4]))
@@ -56,24 +62,6 @@
     (.assertFalse self (--not-any? (even? it) [2 4 4]))
     (.assertTrue self (--not-all? (even? it) [2 4 5]))
     (.assertFalse self (--not-all? (even? it) [2 4 6]))))
-
-(defclass TestIterOp [TestCase]
-  (defn test-concat [self]
-    (.assertEqual self (list (-concat-in [[1 2 3] [4 5] [6]])) [1 2 3 4 5 6])
-    (.assertEqual self (list (-concat [1 2 3] [4 5] [6])) [1 2 3 4 5 6])
-    (.assertEqual self (list (-cons -1 (range 5))) [-1 0 1 2 3 4]))
-
-  (defn test-pair [self]
-    (.assertIsNone self (-iterpair (range 0)))
-    (let [#(first rest) (-iterpair (range 5))]
-      (.assertEqual self first 0)
-      (.assertEqual self (list rest) [1 2 3 4]))
-    (.assertTrue self (-empty? (range 0)))
-    (.assertFalse self (-empty? (range 5)))
-    (.assertIsNone self (-first (range 0)))
-    (.assertIsNotNone self (-first (range 5)))
-    (.assertIsNone self (-rest (range 0)))
-    (.assertIsNotNone self (-rest (range 5)))))
 
 (defclass TestIterGen [TestCase]
   (defn test-iterate [self]
@@ -94,6 +82,10 @@
     (.assertEqual self (list (-cycle-n 2 (iter (range 3)))) [0 1 2 0 1 2])))
 
 (defclass TestIterMux [TestCase]
+  (defn test-concat [self]
+    (.assertEqual self (list (-concat-in [[1 2 3] [4 5] [6]])) [1 2 3 4 5 6])
+    (.assertEqual self (list (-concat [1 2 3] [4 5] [6])) [1 2 3 4 5 6]))
+
   (defn test-zip [self]
     (.assertEqual self (list (-zip (range 5) (range 5 8) (range 10 12))) [[0 5 10] [1 6 11]])
     (.assertEqual self (list (-zip)) [])

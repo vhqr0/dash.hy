@@ -4,7 +4,7 @@
 (eval-and-compile
   (import
     dash.dash.polyfill *
-    dash.dash.sequence *))
+    dash.dash.cons *))
 
 (import
   collections [defaultdict])
@@ -136,6 +136,8 @@
 
 (defn -mapcat [f iterable] (-concat-in (-map f iterable)))
 (defn -mapcat-indexed [f iterable] (-concat-in (-map-indexed f iterable)))
+(defn -mapcons [f iterable] (-map (fn [it] (cons (f it) it)) iterable))
+(defn -mapcons-indexed [f iterable] (-map-indexed (fn [it-index it] (cons (f it-index it) it)) iterable))
 (defn -keep [f iterable] (-remove none? (-map f iterable)))
 (defn -keep-indexed [f iterable] (-remove none? (-map-indexed f iterable)))
 
@@ -162,6 +164,8 @@
 (defmacro --remove [form iterable] `(-remove (fn [it] ~form) ~iterable))
 (defmacro --mapcat [form iterable] `(-mapcat (fn [it] ~form) ~iterable))
 (defmacro --mapcat-indexed [form iterable] `(-mapcat-indexed (fn [it-index it] ~form) ~iterable))
+(defmacro --mapcons [form iterable] `(-mapcons (fn [it] ~form) ~iterable))
+(defmacro --mapcons-indexed [form iterable] `(-mapcons-indexed (fn [it-index it] ~form) ~iterable))
 (defmacro --keep [form iterable] `(-keep (fn [it] ~form) ~iterable))
 (defmacro --keep-indexed [form iterable] `(-keep-indexed (fn [it-index it] ~form) ~iterable))
 (defmacro --some [form iterable] `(-some (fn [it] ~form) ~iterable))
@@ -170,23 +174,6 @@
 (defmacro --all? [form iterable] `(-all? (fn [it] ~form) ~iterable))
 (defmacro --not-any? [form iterable] `(-not-any? (fn [it] ~form) ~iterable))
 (defmacro --not-all? [form iterable] `(-not-all? (fn [it] ~form) ~iterable))
-
-
-;; iter op
-
-(defn -concat-in [iterables] (--each iterables (yield-from it)))
-(defn -concat [#* iterables] (-concat-in iterables))
-
-;; like cons/seqpair/empty?/first/rest, but for iterable.
-;; orig iter should not be used, use iter returned from -iterpair/-rest.
-;; should always check None value, None is seqable, but is not iterable.
-
-(defn -cons [o iterable] (yield o) (yield-from iterable))
-
-(defn -iterpair [iterable] (let [it (iter iterable)] (try #((next it) it) (except [StopIteration]))))
-(defn -empty?   [iterable] (none? (-iterpair iterable)))
-(defn -first    [iterable] (--when-let (-iterpair iterable) (car it)))
-(defn -rest     [iterable] (--when-let (-iterpair iterable) (cdr it)))
 
 
 ;; iter gen
@@ -211,6 +198,9 @@
 
 
 ;; iter mux
+
+(defn -concat-in [iterables] (--each iterables (yield-from it)))
+(defn -concat [#* iterables] (-concat-in iterables))
 
 (defn -zip-in [iterables]
   (loop [ss (list (-map seq iterables))]
@@ -335,7 +325,7 @@
   (--map (list (-take n it)) (-take-nth step (-unsized-window iterable))))
 
 (defn -partition-by [f iterable]
-  (loop [s (seq (--map #((f it) it) iterable))]
+  (loop [s (seq (-mapcons f iterable))]
         (unless (empty? s)
           (let [g (car (first s))
                 #(acc ns) (-split-with (fn [it] (= (car it) g)) s)]
@@ -599,11 +589,11 @@
       (loop [s (seq iterable) acc o]
             (if (empty? s)
                 acc
-                (recur (rest s) (cons (first s) acc))))
+                (recur (rest s) (seq-cons (first s) acc))))
       (-into! (.copy o) iterable)))
 
 (defn -conj [o x]
-  (if (seq? o) (cons x o) (-conj! (.copy o) x)))
+  (if (seq? o) (seq-cons x o) (-conj! (.copy o) x)))
 
 (defn -disj [o x]
   (-disj! (.copy o) x))
@@ -627,10 +617,10 @@
             -reduce-from -reductions-from -reduce -reductions
             ;; map filter
             -map -map-indexed -map-unzipped -filter -remove
-            -mapcat -mapcat-indexed -keep -keep-indexed
+            -mapcat -mapcat-indexed -mapcons -mapcons-indexed -keep -keep-indexed
             -some -every -any? -all? -not-any? -not-all?
             ;; iter op
-            -concat-in -concat -cons -iterpair -empty? -first -rest
+            -concat-in -concat
             ;; iter gen
             -iterate -iterate-n -range
             -repeat -repeat-n -repeatedly -repeatedly-n -cycle -cycle-n
@@ -678,7 +668,7 @@
            --reduce-from --reductions-from --reduce --reductions
            ;; map filter
            --map --map-indexed --map-unzipped --filter --remove
-           --mapcat --mapcat-indexed --keep --keep-indexed
+           --mapcat --mapcat-indexed --mapcons --mapcons-indexed --keep --keep-indexed
            --some --every --any? --all? --not-any? --not-all?
            ;; iter gen
            --iterate --iterate-n --repeatedly --repeatedly-n
