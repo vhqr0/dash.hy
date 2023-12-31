@@ -145,19 +145,25 @@
 
 (defn seq-str [self]
   (loop [acc (list) o self]
-    (if (realized? o)
-        (let [it (realize o)]
-          (if it
-              (recur (do (.append acc (car it)) acc) (cdr it))
-              (.format "({})" (.join " " (map str acc)))))
-        (.format "({} . {})" (.join " " (map str acc)) (delay-str o)))))
+        (if (realized? o)
+            (let [it (realize o)]
+              (if it
+                  (recur (do (.append acc (car it)) acc) (cdr it))
+                  (.format "({})" (.join " " (map str acc)))))
+            (.format "({} . {})" (.join " " (map str acc)) (delay-str o)))))
 
-(setv seq (type "seq" #(delay)
-                {"__slots__" #()
-                 "__init__"  seq-init
-                 "__iter__"  seq-iter
-                 "__str__"   seq-str
-                 "__repr__"  seq-str}))
+(defn seq-meta-call [self [o None] [p False]]
+  (if (and (not p) (seq? o)) o (type.__call__ self o p)))
+
+(setv seq-meta (type "seq-meta" #(type) {"__call__" seq-meta-call}))
+
+(setv seq (seq-meta "seq" #(delay)
+                    {"__slots__" #()
+                     "__init__"  seq-init
+                     "__iter__"  seq-iter
+                     "__bool__"  seq-bool
+                     "__str__"   seq-str
+                     "__repr__"  seq-str}))
 
 (defn seq? [o] (isinstance o seq))
 (defn seqable? [o] (or (none? o) (iterable? o)))
@@ -193,10 +199,10 @@
             ;; iter cons
             iter-cons iter-decons
             ;; delay
-            delay delay? realized? force
+            delay delay? realized? realize force
             ;; seq
-            seq seq? seq-cons seq-decons
+            seq seq? seqable? seq-cons seq-decons
             ;; seqable
-            seqable? decons empty? first rest
+            decons empty? first rest
             ]
   :macros [lazy lazy-seq])
