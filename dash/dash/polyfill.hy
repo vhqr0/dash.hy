@@ -1,8 +1,8 @@
 (import
-  collections.abc [Callable Iterator Iterable Hashable Sized Reversible Sequence Set Mapping])
+  collections.abc [Callable Iterator Iterable Hashable Sized Reversible Sequence Set Mapping]
+  types [FunctionType ModuleType])
 
-(setv function (type (fn []))
-      symbol   hy.models.Symbol
+(setv symbol   hy.models.Symbol
       keyword  hy.models.Keyword
       sexp     hy.models.Expression)
 
@@ -14,7 +14,8 @@
 (defn false?      [o] (is o False))
 (defn bool?       [o] (isinstance o bool))
 (defn type?       [o] (isinstance o type))
-(defn fn?         [o] (isinstance o function))
+(defn module?     [o] (isinstance o ModuleType))
+(defn fn?         [o] (isinstance o FunctionType))
 (defn callable?   [o] (isinstance o Callable))
 (defn iter?       [o] (isinstance o Iterator))
 (defn iterable?   [o] (isinstance o Iterable))
@@ -64,7 +65,7 @@
 
 (export
   :objects [ignore identity none? true? false? bool?
-            type? fn? callable? function
+            type? module? fn? callable?
             iter? iterable? hashable? countable? reversible? sequence? set? map?
             symbol? keyword? sexp? symbol keyword sexp
             str? bytes? bytearray? int? float? number?

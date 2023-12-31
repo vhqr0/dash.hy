@@ -20,10 +20,13 @@
 (defmacro --lazy-seq [#* body] `(-lazy-seq (fn [] ~@body)))
 (defn -lazy-seq [lazy-func] (LazyCons lazy-func))
 
+(defn car [pair] (let [#(first second) pair] first))
+(defn cdr [pair] (let [#(first second) pair] second))
+
 (defn seqpair [s] (. (seq s) pair))
 (defn empty?  [s] (none? (seqpair s)))
-(defn first   [s] (let [pair (seqpair s)] (when pair (get pair 0))))
-(defn rest    [s] (let [pair (seqpair s)] (when pair (get pair 1))))
+(defn first   [s] (let [pair (seqpair s)] (when pair (car pair))))
+(defn rest    [s] (let [pair (seqpair s)] (when pair (cdr pair))))
 
 
 
@@ -87,5 +90,5 @@
 
 
 (export
-  :objects [cons? seq? seqable? cons seq -lazy-seq seqpair empty? first rest]
+  :objects [cons? seq? seqable? cons seq -lazy-seq car cdr seqpair empty? first rest]
   :macros [--lazy-seq])

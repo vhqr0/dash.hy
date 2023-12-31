@@ -24,11 +24,11 @@
     (.assertEqual self (list (-reductions o.add (range 5))) [0 1 3 6 10]))
 
   (defn test-map [self]
-    (.assertEqual self (list (-map* o.add (-zip (range 5) (range 5 10) (range 10 15))))
-                  [15 18 21 24 27])
     (.assertEqual self (list (--map (inc it) (range 5))) [1 2 3 4 5])
     (.assertEqual self (list (--map-indexed (-args it-index it) (range 5 10)))
-                  [#(0 5) #(1 6) #(2 7) #(3 8) #(4 9)]))
+                  [#(0 5) #(1 6) #(2 7) #(3 8) #(4 9)])
+    (.assertEqual self (list (--map-unzipped (+ #* them) (-zip (range 5) (range 5 10) (range 10 15))))
+                  [15 18 21 24 27]))
 
   (defn test-filter [self]
     (.assertEqual self (list (--filter (even? it) (range 10))) [0 2 4 6 8])
@@ -46,10 +46,16 @@
   (defn test-pred [self]
     (.assertIsNone self (--some (when (even? it) (inc it)) [1 3 5]))
     (.assertEqual self (--some (when (even? it) (inc it)) [2 4 5]) 3)
+    (.assertIsNone self (--every (when (even? it) (inc it)) [2 4 5]))
+    (.assertEqual self (--every (when (even? it) (inc it)) [2 4 6]) 7)
     (.assertTrue self (--any? (even? it) [2 4 5]))
     (.assertFalse self (--any? (even? it) [1 3 5]))
     (.assertTrue self (--all? (even? it) [2 4 6]))
-    (.assertFalse self (--all? (even? it) [1 3 4]))))
+    (.assertFalse self (--all? (even? it) [1 3 4]))
+    (.assertTrue self (--not-any? (even? it) [1 3 5]))
+    (.assertFalse self (--not-any? (even? it) [2 4 4]))
+    (.assertTrue self (--not-all? (even? it) [2 4 5]))
+    (.assertFalse self (--not-all? (even? it) [2 4 6]))))
 
 (defclass TestIterOp [TestCase]
   (defn test-concat [self]

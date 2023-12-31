@@ -128,9 +128,9 @@
 
 ;; map filter
 
-(defn -map* [f iterable] (--each iterable (yield (f #* it))))
 (defn -map [f iterable] (--each iterable (yield (f it))))
 (defn -map-indexed [f iterable] (--each-indexed iterable (yield (f it-index it))))
+(defn -map-unzipped [f iterable] (--each iterable (yield (f #* it))))
 (defn -filter [pred iterable] (--each iterable (when (pred it) (yield it))))
 (defn -remove [pred iterable] (--each iterable (unless (pred it) (yield it))))
 
@@ -140,12 +140,24 @@
 (defn -keep-indexed [f iterable] (-remove none? (-map-indexed f iterable)))
 
 (defn -some [f iterable]
-  (loop [s (seq iterable)] (unless (empty? s) (--if-let (f (first s)) it (recur (rest s))))))
+  (loop [s (seq iterable)]
+        (unless (empty? s)
+          (--if-let (f (first s)) it (recur (rest s))))))
+
+(defn -every [f iterable]
+  (loop [s (seq iterable)]
+        (unless (empty? s)
+          (--when-let (f (first s))
+            (if (empty? (rest s)) it (recur (rest s)))))))
+
 (defn -any? [pred iterable] (not (none? (-some pred iterable))))
-(defn -all? [pred iterable] (none? (-some (-complement pred) iterable)))
+(defn -all? [pred iterable] (not (none? (-every pred iterable))))
+(defn -not-any? [pred iterable] (none? (-some pred iterable)))
+(defn -not-all? [pred iterable] (none? (-every pred iterable)))
 
 (defmacro --map [form iterable] `(-map (fn [it] ~form) ~iterable))
 (defmacro --map-indexed [form iterable] `(-map-indexed (fn [it-index it] ~form) ~iterable))
+(defmacro --map-unzipped [form iterable] `(-map-unzipped (fn [#* them] ~form) ~iterable))
 (defmacro --filter [form iterable] `(-filter (fn [it] ~form) ~iterable))
 (defmacro --remove [form iterable] `(-remove (fn [it] ~form) ~iterable))
 (defmacro --mapcat [form iterable] `(-mapcat (fn [it] ~form) ~iterable))
@@ -153,8 +165,11 @@
 (defmacro --keep [form iterable] `(-keep (fn [it] ~form) ~iterable))
 (defmacro --keep-indexed [form iterable] `(-keep-indexed (fn [it-index it] ~form) ~iterable))
 (defmacro --some [form iterable] `(-some (fn [it] ~form) ~iterable))
+(defmacro --every [form iterable] `(-every (fn [it] ~form) ~iterable))
 (defmacro --any? [form iterable] `(-any? (fn [it] ~form) ~iterable))
 (defmacro --all? [form iterable] `(-all? (fn [it] ~form) ~iterable))
+(defmacro --not-any? [form iterable] `(-not-any? (fn [it] ~form) ~iterable))
+(defmacro --not-all? [form iterable] `(-not-all? (fn [it] ~form) ~iterable))
 
 
 ;; iter op
@@ -170,8 +185,8 @@
 
 (defn -iterpair [iterable] (let [it (iter iterable)] (try #((next it) it) (except [StopIteration]))))
 (defn -empty?   [iterable] (none? (-iterpair iterable)))
-(defn -first    [iterable] (--when-let (-iterpair iterable) (-getitem it 0)))
-(defn -rest     [iterable] (--when-let (-iterpair iterable) (-getitem it 1)))
+(defn -first    [iterable] (--when-let (-iterpair iterable) (car it)))
+(defn -rest     [iterable] (--when-let (-iterpair iterable) (cdr it)))
 
 
 ;; iter gen
@@ -230,7 +245,9 @@
       (-getitem iterable n)
       (first (-nthrest iterable n))))
 
-(defn -nthrest [iterable n] (--if-let (-drop n iterable) it (raise IndexError)))
+(defn -nthrest [iterable n]
+  (let [s (-drop n iterable)]
+    (if (empty? it) (raise IndexError) it)))
 
 (defn -take [n iterable]
   (loop [s (seq iterable) n n]
@@ -320,9 +337,9 @@
 (defn -partition-by [f iterable]
   (loop [s (seq (--map #((f it) it) iterable))]
         (unless (empty? s)
-          (let [g (-getitem (first s) 0)
-                #(acc ns) (-split-with (fn [it] (= (-getitem it 0) g)) s)]
-            (yield (list (--map (-getitem it 1) acc)))
+          (let [g (car (first s))
+                #(acc ns) (-split-with (fn [it] (= (car it) g)) s)]
+            (yield (list (-map cdr acc)))
             (recur ns)))))
 
 (defmacro --take-while [form iterable] `(-take-while (fn [it] ~form) ~iterable))
@@ -609,9 +626,9 @@
             -each -each-indexed -dotimes
             -reduce-from -reductions-from -reduce -reductions
             ;; map filter
-            -map* -map -map-indexed -filter -remove
+            -map -map-indexed -map-unzipped -filter -remove
             -mapcat -mapcat-indexed -keep -keep-indexed
-            -some -any? -all?
+            -some -every -any? -all? -not-any? -not-all?
             ;; iter op
             -concat-in -concat -cons -iterpair -empty? -first -rest
             ;; iter gen
@@ -660,9 +677,9 @@
            --each --each-indexed --dotimes
            --reduce-from --reductions-from --reduce --reductions
            ;; map filter
-           --map --map-indexed --filter --remove
+           --map --map-indexed --map-unzipped --filter --remove
            --mapcat --mapcat-indexed --keep --keep-indexed
-           --some --any? --all?
+           --some --every --any? --all? --not-any? --not-all?
            ;; iter gen
            --iterate --iterate-n --repeatedly --repeatedly-n
            ;; iter part
