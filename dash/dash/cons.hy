@@ -5,6 +5,15 @@
   dash.dash.polyfill *)
 
 
+;; metas
+
+;; for class C, object o: C(o) cast object o to C, if o is instance of
+;; C, avoid creating new object, return o itself.
+(defn cast-meta-call [self [o None]]
+  (if (isinstance o self) o (.__call__ (super cast-meta self) o)))
+(setv cast-meta (type "cast-meta" #(type) {"__call__" cast-meta-call}))
+
+
 ;; cons
 
 (setv cons-slots #("car" "cdr"))
@@ -120,18 +129,17 @@
 ;; seq
 
 (defn seq-trampoline [o]
-  (fn []
-    (loop [o o]
-          (cond (none? o) None
-                (cons? o) (cons (car o) (seq (cdr o)))
-                (delay? o) (recur (realize o))
-                (iterable? o) (recur (iter-decons o))
-                True (raise TypeError)))))
+  (loop [o o]
+        (cond (none? o) None
+              (cons? o) (cons (car o) (seq (cdr o)))
+              (delay? o) (recur (realize o))
+              (iterable? o) (recur (iter-decons o))
+              True (raise TypeError))))
 
-(defn seq-init [self [o None] [p False]]
-  (if (or (none? o) p)
-      (delay.__init__ self o True)
-      (delay.__init__ self (seq-trampoline o) False)))
+(defn seq-init [self [o None]]
+  (cond (none? o) (delay.__init__ self None True)
+        (cons? o) (delay.__init__ self (cons (car o) (seq (cdr o))) True)
+        True (delay.__init__ self (fn [] (seq-trampoline o)) False)))
 
 (defn seq-iter [self]
   (loop [o self]
@@ -152,24 +160,19 @@
                   (.format "({})" (.join " " (map str acc)))))
             (.format "({} . {})" (.join " " (map str acc)) (delay-str o)))))
 
-(defn seq-meta-call [self [o None] [p False]]
-  (if (and (not p) (seq? o)) o (type.__call__ self o p)))
-
-(setv seq-meta (type "seq-meta" #(type) {"__call__" seq-meta-call}))
-
-(setv seq (seq-meta "seq" #(delay)
-                    {"__slots__" #()
-                     "__init__"  seq-init
-                     "__iter__"  seq-iter
-                     "__bool__"  seq-bool
-                     "__str__"   seq-str
-                     "__repr__"  seq-str}))
+(setv seq (cast-meta "seq" #(delay)
+                     {"__slots__" #()
+                      "__init__"  seq-init
+                      "__iter__"  seq-iter
+                      "__bool__"  seq-bool
+                      "__str__"   seq-str
+                      "__repr__"  seq-str}))
 
 (defn seq? [o] (isinstance o seq))
 (defn seqable? [o] (or (none? o) (iterable? o)))
 
 (defn seq-cons [o seqable]
-  (seq (cons o (seq seqable)) True))
+  (seq (cons o seqable)))
 
 (defn seq-decons [seqable]
   (realize (seq seqable)))
