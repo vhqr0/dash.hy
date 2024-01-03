@@ -371,7 +371,7 @@
 (defn -count-by [pred iterable] (-count (-filter pred iterable)))
 
 (defn -frequencies [iterable]
-  (--reduce-from (-update! acc it inc) (defaultdict (-constantly 0)) iterable))
+  (--reduce-from (-update! acc it inc) (defaultdict (constantly 0)) iterable))
 
 (defn -group-by [f iterable]
   (--reduce-from (-update! acc (f it) -conj! it) (defaultdict list) iterable))
@@ -382,37 +382,35 @@
 
 ;; functools
 
-(defn -args [#* args] args)
-
-(defn -kwargs [#** kwargs] kwargs)
-
-(defn -apply [f args] (f #* args))
-
+(defn -identity-args [#* args] args)
+(defn -identity-kwargs [#** kwargs] kwargs)
+(defn -apply-args [f args] (f #* args))
+(defn -apply-kwargs [f kwargs] (f #** kwargs))
+(defn -apply [f args kwargs] (f #* args #** kwargs))
 (defn -funcall [f #* args #** kwargs] (f #* args #** kwargs))
 
-(defn -trampoline [f #* args #** kwargs]
-  (loop [r (f #* args #** kwargs)] (if (fn? r) (recur (r)) r)))
-
-(defn -constantly [o] (fn [#* args #** kwargs] o))
-
-(defn -complement [pred] (fn [#* args #** kwargs] (not (pred #* args #** kwargs))))
+(defn -trampoline [o] (loop [o o] (if (fn? o) (recur (o)) o)))
 
 (defn -partial [f #* largs #** lkwargs]
   (fn [#* rargs #** rkwargs] (f #* largs #* rargs #** lkwargs #** rkwargs)))
 (defn -rpartial [f #* rargs #** rkwargs]
   (fn [#* largs #** lkwargs] (f #* largs #* rargs #** lkwargs #** rkwargs)))
 
-(defn -comp-in [fns]
+(defn -notfn [pred] (fn [o] (not (pred o))))
+(defn -orfn [#* preds] (fn [o] (any (--map (it o) preds))))
+(defn -andfn [#* preds] (fn [o] (all (--map (it o) preds))))
+
+(defn -comp [#* fns]
   (if fns
-      (--reduce (fn [#* args #** kwargs] (acc (it #* args #** kwargs))) fns)
+      (let [#(#* trans f) fns]
+        (if trans
+            (let [acc (--reduce (fn [o] (acc (it o))) trans)]
+              (fn [#* args #** kwargs] (acc (f #* args #** kwargs))))
+            f))
       identity))
 
-(defn -comp [#* fns] (-comp-in fns))
-
-(defn -juxt-in [fns]
-  (fn [#* args #** kwargs] (list (--map (it #* args #** kwargs) fns))))
-
-(defn -juxt [#* fns] (-juxt-in fns))
+(defn -juxt [#* fns]
+  (fn [#* args #** kwargs] (tuple (--map (it #* args #** kwargs) fns))))
 
 
 ;; dict get/set/del
@@ -639,8 +637,8 @@
             ;; iter stat
             -count -count-by -frequencies -group-by
             ;; functools
-            -args -kwargs -apply -funcall -trampoline
-            -constantly -complement -partial -rpartial -comp-in -comp -juxt-in -juxt
+            -identity-args -identity-kwargs -apply-args -apply-kwargs -apply -funcall -trampoline
+            -partial -rpartial -notfn -andfn -orfn -comp -juxt
             ;; dict get/set/del
             -getitem -setitem -delitem -updateitem
             -getitem-in -setitem-in -delitem-in -updateitem-in

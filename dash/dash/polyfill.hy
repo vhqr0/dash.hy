@@ -9,6 +9,7 @@
 (defn ignore [#* args #** kwargs])
 
 (defn identity    [o] o)
+(defn constantly  [o] (fn [] o))
 (defn none?       [o] (is o None))
 (defn true?       [o] (is o True))
 (defn false?      [o] (is o False))
@@ -65,7 +66,7 @@
 
 
 (export
-  :objects [ignore identity none? true? false? bool?
+  :objects [ignore identity constantly none? true? false? bool?
             type? module? fn? method? callable?
             iter? iterable? hashable? countable? reversible? sequence? set? map?
             symbol? keyword? sexp? symbol keyword sexp
