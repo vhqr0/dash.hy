@@ -7,7 +7,7 @@
   dash.operator :as o
   dash.strtools :as s)
 
-(defclass TestReduceMapFilter [TestCase]
+(defclass TestIterReduceMapFilter [TestCase]
   (defn test-each [self]
     (.assertEqual self (let [acc [[1] [2 1] [3 2 1]]] (-each acc (fn [it] (-conj! it 0))) acc)
                   [[1 0] [2 1 0] [3 2 1 0]])
@@ -25,7 +25,7 @@
 
   (defn test-map [self]
     (.assertEqual self (list (--map (inc it) (range 5))) [1 2 3 4 5])
-    (.assertEqual self (list (--map-indexed (-identity-args it-index it) (range 5 10)))
+    (.assertEqual self (list (--map-indexed (-argv it-index it) (range 5 10)))
                   [#(0 5) #(1 6) #(2 7) #(3 8) #(4 9)])
     (.assertEqual self (list (--map-unzipped (+ #* them) (-zip (range 5) (range 5 10) (range 10 15))))
                   [15 18 21 24 27]))
@@ -36,7 +36,7 @@
 
   (defn test-mapcat [self]
     (.assertEqual self (list (--mapcat (range it) (range 5))) [0 0 1 0 1 2 0 1 2 3])
-    (.assertEqual self (list (--mapcat-indexed (-identity-args it-index it) (range 5 10)))
+    (.assertEqual self (list (--mapcat-indexed (-argv it-index it) (range 5 10)))
                   [0 5 1 6 2 7 3 8 4 9]))
 
   (defn test-mapcons [self]
@@ -119,10 +119,6 @@
 
 (defclass TestIterPart [TestCase]
   (defn test-take [self]
-    (.assertEqual self (-nth [5 6 7 8 9 10] 2) 7)
-    (.assertEqual self (-nth (range 5 10) 2) 7)
-    (with [_ (.assertRaises self IndexError)]
-      (-nth (range 5 10) 10))
     (.assertEqual self (list (-take 3 (range 5))) [0 1 2])
     (.assertEqual self (list (-take 10 (range 5))) [0 1 2 3 4])
     (.assertEqual self (list (-take 0 (range 5))) [])
@@ -190,12 +186,25 @@
                   [[0 1 2] [2 3 4] [4 5 6] [6 7 8] [8 9]])
     (.assertEqual self (list (--partition-by (even? it) [2 4 5 6 8])) [[2 4] [5] [6 8]])))
 
+(defclass TestIterOp [TestCase]
+  (defn test-count [self]
+    (.assertEqual self (-count [5 6 7 8 9 10]) 6)
+    (.assertEqual self (-count (range 10)) 10))
+
+  (defn test-nth [self]
+    (.assertEqual self (-nth [5 6 7 8 9 10] 2) 7)
+    (.assertEqual self (-nth (range 5 10) 2) 7)
+    (with [_ (.assertRaises self IndexError)]
+      (-nth (range 5 10) 10))))
+
 (defclass TestIterMisc [TestCase]
   (defn test-trans [self]
     (.assertEqual self (list (-replace {0 "N/A"} [1 0 2 0 3])) [1 "N/A" 2 "N/A" 3])
     (.assertEqual self (list (-distinct [1 0 2 0 3])) [1 0 2 3])
     (.assertEqual self (list (-dedupe [1 0 0 2 2 2 0 0 0 0 3 3 3 3 3])) [1 0 2 0 3]))
 
-  (defn test-stat [self]
-    (.assertEqual self (-count (range 10)) 10)
+  (defn test-group [self]
     (.assertEqual self (--group-by (even? it) (range 10)) {True [0 2 4 6 8] False [1 3 5 7 9]})))
+
+(export
+  :objects [TestIterReduceMapFilter TestIterGen TestIterMux TestIterPart TestIterOp TestIterMisc])

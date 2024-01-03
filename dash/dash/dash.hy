@@ -230,15 +230,6 @@
 
 ;; iter part
 
-(defn -nth [iterable n]
-  (if (sequence? iterable)
-      (-getitem iterable n)
-      (first (-nthrest iterable n))))
-
-(defn -nthrest [iterable n]
-  (let [s (-drop n iterable)]
-    (if (empty? it) (raise IndexError) it)))
-
 (defn -take [n iterable]
   (loop [s (seq iterable) n n]
         (unless (or (<= n 0) (empty? s)) (yield (first s)) (recur (rest s) (dec n)))))
@@ -338,7 +329,27 @@
 (defmacro --partition-by [form iterable] `(-partition-by (fn [it] ~form) ~iterable))
 
 
-;; iter trans
+;; iter op
+
+(defn -count [iterable]
+  (if (countable? iterable)
+      (len iterable)
+      (--reduce-from (inc acc) 0 iterable)))
+
+(defn -nth [iterable n]
+  (if (sequence? iterable)
+      (-getitem iterable n)
+      (first (-nthrest iterable n))))
+
+(defn -nthrest [iterable n]
+  (assert (>= n 0))
+  (loop [s (seq iterable) n n]
+        (cond (empty? s) (raise IndexError)
+              (zero? n) s
+              True (recur (rest s) (dec n)))))
+
+
+;; iter misc
 
 (defn -replace [smap iterable] (--map (-get smap it it) iterable))
 
@@ -360,14 +371,6 @@
               (yield it))
             (recur (rest s) it)))))
 
-
-;; iter stat
-
-(defn -count [iterable]
-  (if (countable? iterable)
-      (len iterable)
-      (--reduce-from (inc acc) 0 iterable)))
-
 (defn -group-by [f iterable]
   (--reduce-from (-update! acc (f it) -conj! it) (defaultdict list) iterable))
 
@@ -376,10 +379,11 @@
 
 ;; functools
 
-(defn -identity-args [#* args] args)
-(defn -identity-kwargs [#** kwargs] kwargs)
-(defn -apply-args [f args] (f #* args))
-(defn -apply-kwargs [f kwargs] (f #** kwargs))
+(defn -argv [#* args] args)
+(defn -argkw [#** kwargs] kwargs)
+(defn -arg [#* args #** kwargs] #(args kwargs))
+(defn -applyv [f args] (f #* args))
+(defn -applykw [f kwargs] (f #** kwargs))
 (defn -apply [f args kwargs] (f #* args #** kwargs))
 (defn -funcall [f #* args #** kwargs] (f #* args #** kwargs))
 
@@ -402,9 +406,6 @@
               (fn [#* args #** kwargs] (acc (f #* args #** kwargs))))
             f))
       identity))
-
-(defn -juxt [#* fns]
-  (fn [#* args #** kwargs] (tuple (--map (it #* args #** kwargs) fns))))
 
 
 ;; dict get/set/del
@@ -535,24 +536,45 @@
 (defmacro --merge-with [form #* os] `(-merge-with (fn [acc it] ~form) ~@os))
 
 
-;; coll op
+;; dict getfn
 
-(defn -emptyitem [o]
-  (.clear o))
-
-(defn -intoitem [o iterable]
-  (cond (set? o) (--map (.add o it) iterable)
-        (map? o) (--map (let [#(k v) it] (-setitem o k v)) iterable)
-        (sequence? o) (--map (.append o it) iterable)
+(defn -collfn [o]
+  (cond (set? o) (fn [x] (in x o))
+        (or (map? o) (sequence? o)) (fn [x] (-get o x))
         True (raise TypeError)))
 
-(defn -conjoinitem [o x]
+(defn -keyfn [k] (fn [o] (-get o k)))
+
+(defn -juxtv [#* fns] (fn [o] (tuple (--map (it o) fns))))
+(defn -juxtkw [#** fns] (fn [o] (--map-vals fns (it o))))
+(defn -juxtv-keyfn [#* ks] (-juxtv #* (-map -keyfn ks)))
+(defn -juxtkw-keyfn [#** ks] (-juxtkw #** (-map-vals ks -keyfn)))
+
+
+;; coll op
+
+(defn -extendseq [o iterable]
+  (loop [s (seq iterable) acc o]
+        (if (empty? s)
+            acc
+            (recur (rest s) (seq-cons (first s) acc)))))
+
+(defn -clearitem [o]
+  (.clear o))
+
+(defn -extenditem [o iterable]
+  (cond (set? o) (.update o iterable)
+        (map? o) (.update o iterable)
+        (sequence? o) (.extend o iterable)
+        True (raise TypeError)))
+
+(defn -additem [o x]
   (cond (set? o) (.add o x)
         (map? o) (let [#(k v) x] (-setitem o k v))
         (sequence? o) (.append o x)
         True (raise TypeError)))
 
-(defn -disjoinitem [o x]
+(defn -removeitem [o x]
   (cond (set? o) (.discard o x)
         True (raise TypeError)))
 
@@ -562,27 +584,21 @@
         (sequence? o) (.pop o)
         True (raise TypeError)))
 
-(defn -empty! [o] (doto o (-emptyitem)))
-(defn -into! [o iterable] (doto o (-intoitem iterable)))
-(defn -conj! [o x] (doto o (-conjoinitem x)))
-(defn -disj! [o x] (doto o (-disjoinitem x)))
-(defn -pop! [o] (doto o (-popitem)))
-
-(defn -peek [o]
+(defn -peekitem [o]
   (cond (sequence? o) (-getitem o -1)
-        (seq? o) (first o)
         True (raise TypeError)))
 
+(defn -empty! [o] (doto o (-clearitem)))
+(defn -into! [o iterable] (doto o (-extenditem iterable)))
+(defn -conj! [o x] (doto o (-additem x)))
+(defn -disj! [o x] (doto o (-removeitem x)))
+(defn -pop! [o] (doto o (-popitem)))
+
 (defn -empty [o]
-  (if (seq? o) (seq) (.__class__ o)))
+  (.__class__ o))
 
 (defn -into [o iterable]
-  (if (seq? o)
-      (loop [s (seq iterable) acc o]
-            (if (empty? s)
-                acc
-                (recur (rest s) (seq-cons (first s) acc))))
-      (-into! (.copy o) iterable)))
+  (if (seq? o) (-extendseq o iterable) (-into! (.copy o) iterable)))
 
 (defn -conj [o x]
   (if (seq? o) (seq-cons x o) (-conj! (.copy o) x)))
@@ -593,12 +609,8 @@
 (defn -pop [o]
   (if (seq? o) (rest o) (-pop! (.copy o))))
 
-(defn -keyfn [k] (fn [o] (-get o k)))
-
-(defn -collfn [o]
-  (cond (set? o) (fn [x] (in x o))
-        (or (map? o) (sequence? o)) (fn [x] (-get o x))
-        True (raise TypeError)))
+(defn -peek [o]
+  (if (seq? o) (first o) (-peekitem o)))
 
 
 
@@ -620,19 +632,18 @@
             -zip-in -zip -zip-fill-in -zip-fill -tee -tee-n
             -interleave-in -interleave -interleave-fill-in -interleave-fill -interpose
             ;; iter part
-            -nth -nthrest
             -take -drop -take-while -drop-while -take-nth -drop-nth
             -unsized-window -sized-window -sized-loose-window
             -last -butlast -take-last -drop-last
             -split-at -split-with
             -partition -partition-all -partition-step -partition-all-step -partition-by
+            ;; iter op
+            -count -nth -nthrest
             ;; iter trans
-            -replace -distinct -dedupe
-            ;; iter stat
-            -count -group-by
+            -replace -distinct -dedupe -group-by
             ;; functools
-            -identity-args -identity-kwargs -apply-args -apply-kwargs -apply -funcall -trampoline
-            -partial -rpartial -notfn -andfn -orfn -comp -juxt
+            -argv -argkw -arg -applyv -applykw -apply -funcall -trampoline
+            -partial -rpartial -notfn -andfn -orfn -comp
             ;; dict get/set/del
             -getitem -setitem -delitem -updateitem
             -getitem-in -setitem-in -delitem-in -updateitem-in
@@ -644,11 +655,11 @@
             -map-items -map-keys -map-vals
             -filter-items -filter-keys -filter-vals
             -merge-in -merge -merge-with-in -merge-with
+            ;; dict getfn
+            -keyfn -collfn -juxtv -juxtkw -juxtv-keyfn -juxtkw-keyfn
             ;; coll op
-            -emptyitem -intoitem -conjoinitem -disjoinitem -popitem
-            -empty! -into! -conj! -disj! -pop!
-            -peek -empty -into -conj -disj -pop
-            -keyfn -collfn
+            -clearitem -extenditem -additem -removeitem -popitem -peekitem
+            -empty! -into! -conj! -disj! -pop! -empty -into -conj -disj -pop -peek
             ]
   :macros [
            ;; threading macros
@@ -666,8 +677,8 @@
            --iterate --iterate-n --repeatedly --repeatedly-n
            ;; iter part
            --take-while --drop-while --split-with --partition-by
-           ;; iter stat
-           -group-by
+           ;; iter misc
+           --group-by
            ;; dict get/set/del
            --updateitem --updateitem-in --update! --update-in! --update --update-in
            ;; dict iter
