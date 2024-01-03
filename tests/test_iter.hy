@@ -25,7 +25,7 @@
 
   (defn test-map [self]
     (.assertEqual self (list (--map (inc it) (range 5))) [1 2 3 4 5])
-    (.assertEqual self (list (--map-indexed (-args it-index it) (range 5 10)))
+    (.assertEqual self (list (--map-indexed (-identity-args it-index it) (range 5 10)))
                   [#(0 5) #(1 6) #(2 7) #(3 8) #(4 9)])
     (.assertEqual self (list (--map-unzipped (+ #* them) (-zip (range 5) (range 5 10) (range 10 15))))
                   [15 18 21 24 27]))
@@ -36,7 +36,7 @@
 
   (defn test-mapcat [self]
     (.assertEqual self (list (--mapcat (range it) (range 5))) [0 0 1 0 1 2 0 1 2 3])
-    (.assertEqual self (list (--mapcat-indexed (-args it-index it) (range 5 10)))
+    (.assertEqual self (list (--mapcat-indexed (-identity-args it-index it) (range 5 10)))
                   [0 5 1 6 2 7 3 8 4 9]))
 
   (defn test-mapcons [self]
@@ -198,7 +198,4 @@
 
   (defn test-stat [self]
     (.assertEqual self (-count (range 10)) 10)
-    (.assertEqual self (--count-by (even? it) (range 10)) 5)
-    (.assertEqual self (-frequencies [1 0 2 0 3]) {0 2  1 1  2 1 3 1})
-    (.assertEqual self (--group-by (even? it) (range 10))
-                  {True [0 2 4 6 8] False [1 3 5 7 9]})))
+    (.assertEqual self (--group-by (even? it) (range 10)) {True [0 2 4 6 8] False [1 3 5 7 9]})))

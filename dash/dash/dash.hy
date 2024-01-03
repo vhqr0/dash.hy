@@ -368,15 +368,9 @@
       (len iterable)
       (--reduce-from (inc acc) 0 iterable)))
 
-(defn -count-by [pred iterable] (-count (-filter pred iterable)))
-
-(defn -frequencies [iterable]
-  (--reduce-from (-update! acc it inc) (defaultdict (constantly 0)) iterable))
-
 (defn -group-by [f iterable]
   (--reduce-from (-update! acc (f it) -conj! it) (defaultdict list) iterable))
 
-(defmacro --count-by [form iterable] `(-count-by (fn [it] ~form) ~iterable))
 (defmacro --group-by [form iterable] `(-group-by (fn [it] ~form) ~iterable))
 
 
@@ -635,7 +629,7 @@
             ;; iter trans
             -replace -distinct -dedupe
             ;; iter stat
-            -count -count-by -frequencies -group-by
+            -count -group-by
             ;; functools
             -identity-args -identity-kwargs -apply-args -apply-kwargs -apply -funcall -trampoline
             -partial -rpartial -notfn -andfn -orfn -comp -juxt
@@ -673,7 +667,7 @@
            ;; iter part
            --take-while --drop-while --split-with --partition-by
            ;; iter stat
-           --count-by --group-by
+           -group-by
            ;; dict get/set/del
            --updateitem --updateitem-in --update! --update-in! --update --update-in
            ;; dict iter
