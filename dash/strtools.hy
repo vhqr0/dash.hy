@@ -88,7 +88,8 @@
 (defn expandtabs [o [tabsize 8]] (.expandtabs o tabsize))
 
 (export
-  :objects [encode format format-map join-in join concat-in concat
+  :objects [encode format format-map
+            join-in join concat-str-in concat-str concat-bytes-in concat-bytes
             split rsplit split-lines partition rpartition
             subs includes? replace count index rindex find rfind
             strip lstrip rstrip remove-prefix remove-suffix starts-with? ends-with?
