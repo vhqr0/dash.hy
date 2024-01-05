@@ -1,8 +1,8 @@
 (require
-  dash *)
+  dash.dash *)
 
 (import
-  dash *
+  dash.dash *
   dash.dash
   dash.operator :as o
   dash.strtools :as s)
