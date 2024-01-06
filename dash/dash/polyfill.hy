@@ -47,19 +47,26 @@
 
 
 (defmacro loop [bindings form]
+  (assert (even? (len bindings)))
   (let [names (lfor #(i it) (enumerate bindings) :if (even? i) it)]
     (defn replace-recur [form]
       (if (sexp? form)
-          (if (= (get form 0) 'recur)
-              `(do
-                 (setv #(~@names) #(~@(cut form 1 None)))
-                 (continue))
+          (if (= 'recur (get form 0))
+              (if names
+                  `(do
+                     (setv #(~@names) #(~@(cut form 1 None)))
+                     (continue))
+                  '(continue))
               (sexp (map replace-recur form)))
           form))
-    `((fn []
-        (let [~@bindings]
-          (while True
-            (return ~(replace-recur form))))))))
+    (if names
+        `((fn []
+            (let [~@bindings]
+              (while True
+                (return ~(replace-recur form))))))
+        `((fn []
+            (while True
+              (return ~(replace-recur form))))))))
 
 (defmacro unless [test #* body] `(when (not ~test) ~@body))
 
