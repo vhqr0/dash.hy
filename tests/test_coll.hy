@@ -6,7 +6,7 @@
   dash *
   dash.operator :as o)
 
-(defclass TestDictGetSetDel [TestCase]
+(defclass TestItem [TestCase]
   (defn test-impure [self]
     (let [d {"a" 1}]
       (-assoc! d "b" 2)
@@ -56,13 +56,13 @@
       (.assertEqual self (-update-in d [0 "a"] o.add 2) [{"a" 3 "b" 2} {"c" 3 "d" 4}])
       (.assertEqual self d [{"a" 1 "b" 2} {"c" 3 "d" 4}]))))
 
-(defclass TestDictIter [TestCase]
+(defclass TestDictOp [TestCase]
   )
 
-(defclass TestDictGetfn [TestCase]
+(defclass TestCollGet [TestCase]
   (defn test-collfn [self]
-    (.assertEqual self ((-collfn #{1 2}) 1) True)
-    (.assertEqual self ((-collfn #{1 2}) 3) False)
+    (.assertEqual self ((-collfn #{1 2}) 1) 1)
+    (.assertEqual self ((-collfn #{1 2}) 3) None)
     (.assertEqual self ((-collfn [1 2]) 0) 1)
     (.assertIsNone self ((-collfn [1 2]) 2))
     (.assertEqual self ((-collfn {"a" 1 "b" 2}) "a") 1)
@@ -76,8 +76,8 @@
     (.assertEqual self ((-juxtv-keyfn 0 2) [1 2 3]) #(1 3))
     (.assertEqual self ((-juxtkw-keyfn :a 0 :b 2) [1 2 3]) {"a" 1 "b" 3})))
 
-(defclass TestDictOp [TestCase]
+(defclass TestCollOp [TestCase]
   )
 
 (export
-  :objects [TestDictGetSetDel TestDictIter TestDictGetfn TestDictOp])
+  :objects [TestItem TestDictOp TestCollGet TestCollOp])

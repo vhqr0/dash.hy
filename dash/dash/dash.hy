@@ -408,7 +408,7 @@
       identity))
 
 
-;; dict get/set/del
+;; get/set/del/update item
 
 ;; like getattr/setattr/delattr
 (defn -getitem [o k] (get o k))
@@ -464,40 +464,24 @@
 (defmacro --update-in [o ks form] `(-update-in ~o ~ks (fn [it] ~form)))
 
 
-;; dict iter
-
-(defn -contains? [o k]
-  (cond (map? o) (in k o)
-        (sequence? o) (in k (range (len o)))
-        True (raise TypeError)))
-
-(defn -get [o k [d None]]
-  (cond (map? o) (.get o k d)
-        (sequence? o) (if (in k (range (len o))) (-getitem o k) d)
-        True (raise TypeError)))
-
-(defn -get-in [o ks [d None]]
-  (loop [s (seq ks) acc o]
-        (cond (none? acc) d
-              (empty? s) acc
-              True (recur (rest s) (-get acc (first s))))))
+;; dict op
 
 (defn -items [o]
   (cond (map? o) (.items o)
+        (set? o) (--map #(it it) o)
         (sequence? o) (enumerate o)
         True (raise TypeError)))
 
 (defn -keys [o]
   (cond (map? o) (.keys o)
+        (set? o) o
         (sequence? o) (range (len o))
         True (raise TypeError)))
 
 (defn -vals [o]
   (cond (map? o) (.values o)
-        (sequence? o) o
+        (or (set? o) (sequence? o)) o
         True (raise TypeError)))
-
-(defn -select-keys [o ks] (dict (--map #(it (-get o it)) ks)))
 
 (defn -reduce-items [o f init] (--reduce-from (let [#(k v) it] (f acc k v)) init (-items o)))
 
@@ -509,21 +493,19 @@
 (defn -filter-keys  [o pred] (dict (--filter (let [#(k v) it] (pred k))   (-items o))))
 (defn -filter-vals  [o pred] (dict (--filter (let [#(k v) it] (pred v))   (-items o))))
 
-(defn -merge-in [os]
+(defn -select-keys [o ks] (dict (--map #(it (-get o it)) ks)))
+
+(defn -merge [#* os]
   (--reduce-from
     (let [#(k v) it] (-assoc! acc k v))
     (dict)
     (-concat-in (-map -items os))))
 
-(defn -merge [#* os] (-merge-in os))
-
-(defn -merge-with-in [f os]
+(defn -merge-with [f #* os]
   (--reduce-from
     (let [#(k v) it] (if (-contains? acc k) (-update! acc k f v) (-assoc! acc k v)))
     (dict)
     (-concat-in (-map -items os))))
-
-(defn -merge-with [f #* os] (-merge-with-in f os))
 
 (defmacro --reduce-items [o form init] `(-reduce-items ~o (fn [acc k v] ~form) ~init))
 (defmacro --map-items [o form] `(-map-items ~o (fn [k v] ~form)))
@@ -532,17 +514,42 @@
 (defmacro --filter-items [o form] `(-filter-items ~o (fn [k v] ~form)))
 (defmacro --filter-keys [o form] `(-filter-keys ~o (fn [it] ~form)))
 (defmacro --filter-vals [o form] `(-filter-vals ~o (fn [it] ~form)))
-(defmacro --merge-with-in [form os] `(-merge-with-in (fn [acc it] ~form) ~os))
 (defmacro --merge-with [form #* os] `(-merge-with (fn [acc it] ~form) ~@os))
 
 
-;; dict getfn
+;; set op
 
-(defn -collfn [o]
-  (cond (set? o) (fn [x] (in x o))
-        (or (map? o) (sequence? o)) (fn [x] (-get o x))
+(defn -union        [#* os] (if os (let [#(o #* os) os] (.union        o #* os)) (set)))
+(defn -difference   [#* os] (if os (let [#(o #* os) os] (.difference   o #* os)) (set)))
+(defn -intersection [#* os] (if os (let [#(o #* os) os] (.intersection o #* os)) (set)))
+
+(defn -symmetric-difference [o1 o2] (.symmetric-difference o1 o2))
+
+(defn -subset?   [o1 o2] (.issubset   o1 o2))
+(defn -superset? [o1 o2] (.issuperset o1 o2))
+(defn -disjoint? [o1 o2] (.isdisjoint o1 o2))
+
+
+;; coll get
+
+(defn -contains? [o k]
+  (cond (or (set? o) (map? o)) (in k o)
+        (sequence? o) (in k (range (len o)))
         True (raise TypeError)))
 
+(defn -get [o k [d None]]
+  (cond (set? o) (if (in k o) k d)
+        (map? o) (.get o k d)
+        (sequence? o) (if (in k (range (len o))) (-getitem o k) d)
+        True (raise TypeError)))
+
+(defn -get-in [o ks [d None]]
+  (loop [s (seq ks) acc o]
+        (cond (none? acc) d
+              (empty? s) acc
+              True (recur (rest s) (-get acc (first s))))))
+
+(defn -collfn [o] (fn [k] (-get o k)))
 (defn -keyfn [k] (fn [o] (-get o k)))
 
 (defn -juxtv [#* fns] (fn [o] (tuple (--map (it o) fns))))
@@ -550,10 +557,14 @@
 (defn -juxtv-keyfn [#* ks] (-juxtv #* (-map -keyfn ks)))
 (defn -juxtkw-keyfn [#** ks] (-juxtkw #** (-map-vals ks -keyfn)))
 
+(defmacro --juxtv [#* forms] `(-juxtv ~@(--map `(fn [it] ~it) forms)))
+(defmacro --juxtkw [#* clauses]
+  `(-juxtkw ~@(--map-indexed (if (even? it-index) it `(fn [it] ~it)) clauses)))
+
 
 ;; coll op
 
-(defn -extendseq [o iterable]
+(defn -seq-into [o iterable]
   (loop [s (seq iterable) acc o]
         (if (empty? s)
             acc
@@ -594,23 +605,12 @@
 (defn -disj! [o x] (doto o (-removeitem x)))
 (defn -pop! [o] (doto o (-popitem)))
 
-(defn -empty [o]
-  (.__class__ o))
-
-(defn -into [o iterable]
-  (if (seq? o) (-extendseq o iterable) (-into! (.copy o) iterable)))
-
-(defn -conj [o x]
-  (if (seq? o) (seq-cons x o) (-conj! (.copy o) x)))
-
-(defn -disj [o x]
-  (-disj! (.copy o) x))
-
-(defn -pop [o]
-  (if (seq? o) (rest o) (-pop! (.copy o))))
-
-(defn -peek [o]
-  (if (seq? o) (first o) (-peekitem o)))
+(defn -empty [o] (.__class__ o))
+(defn -into [o iterable] (if (seq? o) (-seq-into o iterable) (-into! (.copy o) iterable)))
+(defn -conj [o x] (if (seq? o) (seq-cons x o) (-conj! (.copy o) x)))
+(defn -disj [o x] (-disj! (.copy o) x))
+(defn -pop [o] (if (seq? o) (rest o) (-pop! (.copy o))))
+(defn -peek [o] (if (seq? o) (first o) (-peekitem o)))
 
 
 
@@ -623,13 +623,11 @@
             -map -map-indexed -map-unzipped -filter -remove
             -mapcat -mapcat-indexed -mapcons -mapcons-indexed -keep -keep-indexed
             -some -every -any? -all? -not-any? -not-all?
-            ;; iter op
-            -concat-in -concat
             ;; iter gen
             -iterate -iterate-n -range
             -repeat -repeat-n -repeatedly -repeatedly-n -cycle -cycle-n
             ;; iter mux
-            -zip-in -zip -zip-fill-in -zip-fill -tee -tee-n
+            -concat-in -concat -zip-in -zip -zip-fill-in -zip-fill -tee -tee-n
             -interleave-in -interleave -interleave-fill-in -interleave-fill -interpose
             ;; iter part
             -take -drop -take-while -drop-while -take-nth -drop-nth
@@ -644,19 +642,23 @@
             ;; functools
             -argv -argkw -arg -applyv -applykw -apply -funcall -trampoline
             -partial -rpartial -notfn -andfn -orfn -comp
-            ;; dict get/set/del
+            ;; get/set/del/update item
             -getitem -setitem -delitem -updateitem
             -getitem-in -setitem-in -delitem-in -updateitem-in
             -assoc! -dissoc! -update! -assoc-in! -dissoc-in! -update-in!
             -assoc -dissoc -update -assoc-in -dissoc-in -update-in
-            ;; dict iter
-            -contains? -get -get-in -items -keys -vals -select-keys
+            ;; dict op
+            -items -keys -vals
             -reduce-items
             -map-items -map-keys -map-vals
             -filter-items -filter-keys -filter-vals
-            -merge-in -merge -merge-with-in -merge-with
-            ;; dict getfn
-            -keyfn -collfn -juxtv -juxtkw -juxtv-keyfn -juxtkw-keyfn
+            -select-keys -merge -merge-with
+            ;; set op
+            -union -difference -intersection -symmetric-difference
+            -subset? -superset? -disjoint?
+            ;; coll get
+            -contains? -get -get-in
+            -collfn -keyfn -juxtv -juxtkw -juxtv-keyfn -juxtkw-keyfn
             ;; coll op
             -clearitem -extenditem -additem -removeitem -popitem -peekitem
             -empty! -into! -conj! -disj! -pop! -empty -into -conj -disj -pop -peek
@@ -679,11 +681,13 @@
            --take-while --drop-while --split-with --partition-by
            ;; iter misc
            --group-by
-           ;; dict get/set/del
+           ;; get/set/del/update item
            --updateitem --updateitem-in --update! --update-in! --update --update-in
-           ;; dict iter
+           ;; dict op
            --reduce-items
            --map-items --map-keys --map-vals
            --filter-items --filter-keys --filter-vals
-           --merge-with-in --merge-with
+           --merge-with
+           ;; coll get
+           --juxtv --juxtkw
            ])
