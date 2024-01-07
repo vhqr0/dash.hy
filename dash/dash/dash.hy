@@ -371,6 +371,17 @@
               (yield it))
             (recur (rest s) it)))))
 
+(defn -should-flatten? [o]
+  (and (not (str? o)) (not (bytes? o)) (iterable? o)))
+
+(defn -flatten [iterable]
+  (loop [s (seq iterable)]
+        (unless (empty? s)
+          (if (-should-flatten? (first s))
+              (yield-from (-flatten (first s)))
+              (yield (first s)))
+          (recur (rest s)))))
+
 (defn -group-by [f iterable]
   (--reduce-from (-update! acc (f it) -conj! it) (defaultdict list) iterable))
 
@@ -638,7 +649,7 @@
             ;; iter op
             -count -nth -nthrest
             ;; iter trans
-            -replace -distinct -dedupe -group-by
+            -replace -distinct -dedupe -flatten -group-by
             ;; functools
             -argv -argkw -arg -applyv -applykw -apply -funcall -trampoline
             -partial -rpartial -notfn -andfn -orfn -comp

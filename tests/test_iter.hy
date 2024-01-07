@@ -203,6 +203,9 @@
     (.assertEqual self (list (-distinct [1 0 2 0 3])) [1 0 2 3])
     (.assertEqual self (list (-dedupe [1 0 0 2 2 2 0 0 0 0 3 3 3 3 3])) [1 0 2 0 3]))
 
+  (defn test-flatten [self]
+    (.assertEqual self (list (-flatten [1 2 [3 4 [5 6]] [7 [8 [9]]]])) [1 2 3 4 5 6 7 8 9]))
+
   (defn test-group [self]
     (.assertEqual self (--group-by (even? it) (range 10)) {True [0 2 4 6 8] False [1 3 5 7 9]})))
 
