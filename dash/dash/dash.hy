@@ -14,17 +14,17 @@
 
 (eval-and-compile
   (defn -thread-first-form [x form]
-    (if (sexp? form) (let [#(h #* ts) form] `(~h ~x ~@ts)) `(~form ~x)))
+    (if (sexp? form) (let [#(car #* forms) form] `(~car ~x ~@forms)) `(~form ~x)))
   (defn -thread-last-form [x form]
     (if (sexp? form) `(~@form ~x) `(~form ~x))))
 
 (defmacro -> [x #* body]
   (loop [s (seq body) acc x]
-        (if (empty? s) acc (recur (rest s) (-thread-first-form x (first s))))))
+        (if (empty? s) acc (recur (rest s) (-thread-first-form acc (first s))))))
 
 (defmacro ->> [x #* body]
   (loop [s (seq body) acc x]
-        (if (empty? s) acc (recur (rest s) (-thread-last-form x (first s))))))
+        (if (empty? s) acc (recur (rest s) (-thread-last-form acc (first s))))))
 
 (defmacro as-> [x name #* body]
   `(let [~name ~x]
