@@ -575,12 +575,6 @@
 
 ;; coll op
 
-(defn -seq-into [o iterable]
-  (loop [s (seq iterable) acc o]
-        (if (empty? s)
-            acc
-            (recur (rest s) (seq-cons (first s) acc)))))
-
 (defn -clearitem [o]
   (.clear o))
 
@@ -617,8 +611,8 @@
 (defn -pop! [o] (doto o (-popitem)))
 
 (defn -empty [o] (.__class__ o))
-(defn -into [o iterable] (if (seq? o) (-seq-into o iterable) (-into! (.copy o) iterable)))
-(defn -conj [o x] (if (seq? o) (seq-cons x o) (-conj! (.copy o) x)))
+(defn -into [o iterable] (if (seq? o) (seq (conlist-in iterable :last o)) (-into! (.copy o) iterable)))
+(defn -conj [o x] (if (seq? o) (seq (cons x o)) (-conj! (.copy o) x)))
 (defn -disj [o x] (-disj! (.copy o) x))
 (defn -pop [o] (if (seq? o) (rest o) (-pop! (.copy o))))
 (defn -peek [o] (if (seq? o) (first o) (-peekitem o)))

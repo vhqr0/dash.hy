@@ -2,7 +2,8 @@
   dash.dash.polyfill *)
 
 (import
-  dash.dash.polyfill *)
+  dash.dash.polyfill *
+  dash.strtools :as s)
 
 
 ;; metas
@@ -26,11 +27,9 @@
 
 (defn cons-str [self]
   (loop [acc (list) o self]
-        (if (cons? o)
-            (recur (do (.append acc (car o)) acc) (cdr o))
-            (.format "({}{})"
-                     (.join " " (map str acc))
-                     (if (none? o) "" (.format " . {}" o))))))
+        (cond (cons? o) (recur (do (.append acc (car o)) acc) (cdr o))
+              (none? o) (s.format "({})" (s.join-in " " (map str acc)))
+              True (s.format "({} . {})" (s.join-in " " (map str acc)) o))))
 
 (setv cons (type "cons" #()
                  {"__slots__" cons-slots
@@ -63,13 +62,19 @@
 
 ;; conlist
 
-(defn conlist [#* iterable]
-  (conlist-in iterable))
+(defn conlist [#* iterable [last None]]
+  (conlist-in iterable :last last))
 
-(defn conlist-in [iterable]
+(defn conlist-in [iterable [last None]]
   (let [acc None]
     (for [o iterable] (setv acc (cons o acc)))
-    (conlist-reverse acc)))
+    (conlist-reverse acc :last last)))
+
+(defn conlist-reverse [o [last None]]
+  (loop [acc last o o]
+        (cond (none? o) acc
+              (cons? o) (recur (cons (car o) acc) (cdr o))
+              True (raise TypeError))))
 
 (defn conlist-iter [self]
   (loop [o self]
@@ -77,22 +82,6 @@
           (if (cons? o)
               (do (yield (car o)) (recur (cdr o)))
               (raise TypeError)))))
-
-(defn conlist-reverse [o]
-  (loop [acc None o o]
-        (cond (none? o) acc
-              (cons? o) (recur (cons (car o) acc) (cdr o))
-              True (raise TypeError))))
-
-
-;; itercons
-
-(defn iter-cons [o iterable]
-  (yield o) (yield-from iterable))
-
-(defn iter-decons [iterable]
-  (let [it (iter iterable)]
-    (try (cons (next it) it) (except [StopIteration]))))
 
 
 ;; delay
@@ -103,7 +92,7 @@
   (setv #(self.v self.p) #(v p)))
 
 (defn delay-str [self]
-  (.format "<delay {}={}>" (if self.p "realized" "unrealized") self.v))
+  (s.format "<delay {}={}>" (if self.p "realized" "unrealized") self.v))
 
 (setv delay (type "delay" #()
                   {"__slots__" delay-slots
@@ -113,14 +102,8 @@
 
 (defn delay? [o] (isinstance o delay))
 (defn realized? [o] o.p)
-
-(defn realize [o]
-  (unless (realized? o)
-    (setv #(o.v o.p) #((o.v) True)))
-  o.v)
-
-(defn force [o]
-  (if (not (delay? o)) o (realize o)))
+(defn realize [o] (unless (realized? o) (setv #(o.v o.p) #((o.v) True))) o.v)
+(defn force [o] (if (delay? o) (realize o) o))
 
 (defmacro lazy [#* body]
   `(delay (fn [] ~@body)))
@@ -133,7 +116,8 @@
         (cond (none? o) None
               (cons? o) (cons (car o) (seq (cdr o)))
               (delay? o) (recur (realize o))
-              (iterable? o) (recur (iter-decons o))
+              (iter? o) (recur (try (cons (next o) o) (except [StopIteration])))
+              (iterable? o) (recur (iter o))
               True (raise TypeError))))
 
 (defn seq-init [self [o None]]
@@ -153,12 +137,9 @@
 
 (defn seq-str [self]
   (loop [acc (list) o self]
-        (if (realized? o)
-            (let [it (realize o)]
-              (if it
-                  (recur (do (.append acc (car it)) acc) (cdr it))
-                  (.format "({})" (.join " " (map str acc)))))
-            (.format "({} . {})" (.join " " (map str acc)) (delay-str o)))))
+        (cond (not (realized? o)) (s.format "({} . {})" (s.join-in " " (map str acc)) (delay-str o))
+              (none? o.v) (s.format "({})" (s.join-in " " (map str acc)))
+              True (recur (do (.append acc (car o.v)) acc) (cdr o.v)))))
 
 (setv seq (cast-meta "seq" #(delay)
                      {"__slots__" #()
@@ -169,27 +150,12 @@
                       "__repr__"  seq-str}))
 
 (defn seq? [o] (isinstance o seq))
-(defn seqable? [o] (or (none? o) (iterable? o)))
-
-(defn seq-cons [o seqable]
-  (seq (cons o seqable)))
-
-(defn seq-decons [seqable]
-  (realize (seq seqable)))
+(defn empty? [o] (none? (realize (seq o))))
+(defn first [o] (car-safe (realize (seq o))))
+(defn rest [o] (cdr-safe (realize (seq o))))
 
 (defmacro lazy-seq [#* body]
   `(seq (lazy ~@body)))
-
-
-;; seqable
-
-(defn decons [seqable]
-  (unless (none? seqable)
-    ((if (seq? seqable) seq-decons iter-decons) seqable)))
-
-(defn empty? [seqable] (none? (decons seqable)))
-(defn first [seqable] (car-safe (decons seqable)))
-(defn rest [seqable] (cdr-safe (decons seqable)))
 
 
 
@@ -198,14 +164,10 @@
             ;; cons
             cons cons? car cdr caar cadr cdar cddr car-safe cdr-safe setcar setcdr
             ;; conlist
-            conlist conlist-in conlist-iter conlist-reverse
-            ;; iter cons
-            iter-cons iter-decons
+            conlist conlist-in conlist-reverse conlist-iter
             ;; delay
             delay delay? realized? realize force
             ;; seq
-            seq seq? seqable? seq-cons seq-decons
-            ;; seqable
-            decons empty? first rest
+            seq seq? empty? first rest
             ]
   :macros [lazy lazy-seq])
