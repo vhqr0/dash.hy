@@ -113,9 +113,9 @@
                   [0 5 10 1 6 11])
     (.assertEqual self (list (-interleave-fill "N/A" (range 5) (range 5 8)))
                   [0 5 1 6 2 7 3 "N/A" 4 "N/A"])
-    (.assertEqual self (s.concat-str-in (-interpose ":" (-map str (range 5))))
+    (.assertEqual self (s.concats-in (-interpose ":" (-map str (range 5))))
                   "0:1:2:3:4")
-    (.assertEqual self (s.concat-str-in (-interpose ":" (range 0))) "")))
+    (.assertEqual self (s.concats-in (-interpose ":" (range 0))) "")))
 
 (defclass TestIterPart [TestCase]
   (defn test-take [self]

@@ -11,10 +11,10 @@
 (defn join-in [sep os] (.join sep os))
 (defn join [sep #* os] (join-in sep os))
 
-(defn concat-str-in [ss] (join-in "" ss))
-(defn concat-str [#* ss] (concat-str-in ss))
-(defn concat-bytes-in [bs] (join-in b"" bs))
-(defn concat-bytes [#* bs] (concat-bytes-in bs))
+(defn concats-in [ss] (join-in "" ss))
+(defn concats [#* ss] (concats-in ss))
+(defn concatb-in [bs] (join-in b"" bs))
+(defn concatb [#* bs] (concatb-in bs))
 
 (defn split-lines [o] (.splitlines o))
 
@@ -89,7 +89,7 @@
 
 (export
   :objects [encode decode format format-map
-            join-in join concat-str-in concat-str concat-bytes-in concat-bytes
+            join-in join concats-in concats concatb-in concatb
             split rsplit split-lines partition rpartition
             subs includes? replace count index rindex find rfind
             strip lstrip rstrip remove-prefix remove-suffix starts-with? ends-with?

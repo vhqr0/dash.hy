@@ -26,7 +26,7 @@
 (defn a!name [a? name]
   (let [private? (s.starts-with? name "_")
         lower? (s.lower? name)]
-    (s.concat-str
+    (s.concats
       (if private? "_" "")
       (if lower? (if a? "async-" "sync-") (if a? "Async" "Sync"))
       (if private? (cut name 1 None) name))))
