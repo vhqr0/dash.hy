@@ -66,9 +66,12 @@
   (conlist-in iterable :last last))
 
 (defn conlist-in [iterable [last None]]
-  (let [acc None]
+  (conlist-reverse (conlist-in-reverse iterable) :last last))
+
+(defn conlist-in-reverse [iterable [last None]]
+  (let [acc last]
     (for [o iterable] (setv acc (cons o acc)))
-    (conlist-reverse acc :last last)))
+    acc))
 
 (defn conlist-reverse [o [last None]]
   (loop [acc last o o]
@@ -164,7 +167,7 @@
             ;; cons
             cons cons? car cdr caar cadr cdar cddr car-safe cdr-safe setcar setcdr
             ;; conlist
-            conlist conlist-in conlist-reverse conlist-iter
+            conlist conlist-in conlist-in-reverse conlist-reverse conlist-iter
             ;; delay
             delay delay? realized? realize force
             ;; seq

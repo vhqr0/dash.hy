@@ -611,7 +611,7 @@
 (defn -pop! [o] (doto o (-popitem)))
 
 (defn -empty [o] (.__class__ o))
-(defn -into [o iterable] (if (seq? o) (seq (conlist-in iterable :last o)) (-into! (.copy o) iterable)))
+(defn -into [o iterable] (if (seq? o) (seq (conlist-in-reverse iterable :last o)) (-into! (.copy o) iterable)))
 (defn -conj [o x] (if (seq? o) (seq (cons x o)) (-conj! (.copy o) x)))
 (defn -disj [o x] (-disj! (.copy o) x))
 (defn -pop [o] (if (seq? o) (rest o) (-pop! (.copy o))))
