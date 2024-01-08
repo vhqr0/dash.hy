@@ -73,7 +73,7 @@
 (defn upper-case [o] (.upper o))
 (defn title-case [o] (.title o))
 (defn swap-case  [o] (.swapcase o))
-(defn casefold   [o] (.casefold o))
+(defn case-fold  [o] (.casefold o))
 
 
 
@@ -95,5 +95,5 @@
             strip lstrip rstrip remove-prefix remove-suffix starts-with? ends-with?
             blank? ascii? space? alpha? lower? upper? title?
             digit? decimal? numeric? alnum? printable?
-            capitalize lower-case upper-case title-case swap-case casefold
+            capitalize lower-case upper-case title-case swap-case case-fold
             center ljust rjust zfill expandtabs])
