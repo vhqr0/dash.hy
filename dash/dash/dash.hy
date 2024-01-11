@@ -178,9 +178,9 @@
   (loop [acc init n n] (when (>= n 1) (yield acc) (recur (f acc) (dec n)))))
 (defn -range [] (-iterate inc 0))
 
-(defn -repeat [o] (while True (yield o)))
+(defn -repeat [o] (loop [] (do (yield o) (recur))))
 (defn -repeat-n [n o] (--dotimes n (yield o)))
-(defn -repeatedly [f] (while True (yield (f))))
+(defn -repeatedly [f] (loop [] (do (yield (f)) (recur))))
 (defn -repeatedly-n [n f] (--dotimes n (yield (f))))
 (defn -cycle [iterable] (-concat-in (-repeat (seq iterable))))
 (defn -cycle-n [n iterable] (-concat-in (-repeat-n n (seq iterable))))
