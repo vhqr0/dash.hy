@@ -121,15 +121,9 @@
 (defn -map [f iterable] (--each iterable (yield (f it))))
 (defn -map-indexed [f iterable] (--each-indexed iterable (yield (f it-index it))))
 (defn -map-unzipped [f iterable] (--each iterable (yield (f #* it))))
+
 (defn -filter [pred iterable] (--each iterable (when (pred it) (yield it))))
 (defn -remove [pred iterable] (--each iterable (unless (pred it) (yield it))))
-
-(defn -mapcat [f iterable] (-concat-in (-map f iterable)))
-(defn -mapcat-indexed [f iterable] (-concat-in (-map-indexed f iterable)))
-(defn -mapcons [f iterable] (-map (fn [it] (cons (f it) it)) iterable))
-(defn -mapcons-indexed [f iterable] (-map-indexed (fn [it-index it] (cons (f it-index it) it)) iterable))
-(defn -keep [f iterable] (-remove none? (-map f iterable)))
-(defn -keep-indexed [f iterable] (-remove none? (-map-indexed f iterable)))
 
 (defn -some [f iterable]
   (loop [s (seq iterable)]
@@ -142,28 +136,38 @@
           (when-let [it (f (first s))]
             (if (empty? (rest s)) it (recur (rest s)))))))
 
-(defn -any? [pred iterable] (not (none? (-some pred iterable))))
-(defn -all? [pred iterable] (not (none? (-every pred iterable))))
+(defn -any? [pred iterable] (not (-not-any? pred iterable)))
+(defn -all? [pred iterable] (not (-not-all? pred iterable)))
 (defn -not-any? [pred iterable] (none? (-some pred iterable)))
 (defn -not-all? [pred iterable] (none? (-every pred iterable)))
+
+(defn -mapcat [f iterable] (-concat-in (-map f iterable)))
+(defn -mapcat-indexed [f iterable] (-concat-in (-map-indexed f iterable)))
+
+(defn -mapcons [f iterable] (-map (fn [it] (cons (f it) it)) iterable))
+(defn -mapcons-indexed [f iterable]
+  (-map-indexed (fn [it-index it] (cons (f it-index it) it)) iterable))
+
+(defn -keep [f iterable] (-remove none? (-map f iterable)))
+(defn -keep-indexed [f iterable] (-remove none? (-map-indexed f iterable)))
 
 (defmacro --map [form iterable] `(-map (fn [it] ~form) ~iterable))
 (defmacro --map-indexed [form iterable] `(-map-indexed (fn [it-index it] ~form) ~iterable))
 (defmacro --map-unzipped [form iterable] `(-map-unzipped (fn [#* them] ~form) ~iterable))
 (defmacro --filter [form iterable] `(-filter (fn [it] ~form) ~iterable))
 (defmacro --remove [form iterable] `(-remove (fn [it] ~form) ~iterable))
-(defmacro --mapcat [form iterable] `(-mapcat (fn [it] ~form) ~iterable))
-(defmacro --mapcat-indexed [form iterable] `(-mapcat-indexed (fn [it-index it] ~form) ~iterable))
-(defmacro --mapcons [form iterable] `(-mapcons (fn [it] ~form) ~iterable))
-(defmacro --mapcons-indexed [form iterable] `(-mapcons-indexed (fn [it-index it] ~form) ~iterable))
-(defmacro --keep [form iterable] `(-keep (fn [it] ~form) ~iterable))
-(defmacro --keep-indexed [form iterable] `(-keep-indexed (fn [it-index it] ~form) ~iterable))
 (defmacro --some [form iterable] `(-some (fn [it] ~form) ~iterable))
 (defmacro --every [form iterable] `(-every (fn [it] ~form) ~iterable))
 (defmacro --any? [form iterable] `(-any? (fn [it] ~form) ~iterable))
 (defmacro --all? [form iterable] `(-all? (fn [it] ~form) ~iterable))
 (defmacro --not-any? [form iterable] `(-not-any? (fn [it] ~form) ~iterable))
 (defmacro --not-all? [form iterable] `(-not-all? (fn [it] ~form) ~iterable))
+(defmacro --mapcat [form iterable] `(-mapcat (fn [it] ~form) ~iterable))
+(defmacro --mapcat-indexed [form iterable] `(-mapcat-indexed (fn [it-index it] ~form) ~iterable))
+(defmacro --mapcons [form iterable] `(-mapcons (fn [it] ~form) ~iterable))
+(defmacro --mapcons-indexed [form iterable] `(-mapcons-indexed (fn [it-index it] ~form) ~iterable))
+(defmacro --keep [form iterable] `(-keep (fn [it] ~form) ~iterable))
+(defmacro --keep-indexed [form iterable] `(-keep-indexed (fn [it-index it] ~form) ~iterable))
 
 
 ;; iter gen
@@ -408,6 +412,13 @@
             f))
       identity))
 
+(defn -juxtv [#* fns] (fn [o] (tuple (--map (it o) fns))))
+(defn -juxtkw [#** fns] (fn [o] (-map-vals fns (fn [it] (it o)))))
+
+(defmacro --juxtv [#* forms] `(-juxtv ~@(--map `(fn [it] ~it) forms)))
+(defmacro --juxtkw [#* clauses]
+  `(-juxtkw ~@(--map-indexed (if (even? it-index) it `(fn [it] ~it)) clauses)))
+
 
 ;; get/set/del/update item
 
@@ -552,15 +563,8 @@
 
 (defn -collfn [o] (fn [k] (-get o k)))
 (defn -keyfn [k] (fn [o] (-get o k)))
-
-(defn -juxtv [#* fns] (fn [o] (tuple (--map (it o) fns))))
-(defn -juxtkw [#** fns] (fn [o] (--map-vals fns (it o))))
 (defn -juxtv-keyfn [#* ks] (-juxtv #* (-map -keyfn ks)))
 (defn -juxtkw-keyfn [#** ks] (-juxtkw #** (-map-vals ks -keyfn)))
-
-(defmacro --juxtv [#* forms] `(-juxtv ~@(--map `(fn [it] ~it) forms)))
-(defmacro --juxtkw [#* clauses]
-  `(-juxtkw ~@(--map-indexed (if (even? it-index) it `(fn [it] ~it)) clauses)))
 
 
 ;; coll op
@@ -636,7 +640,7 @@
             -replace -distinct -dedupe -flatten -group-by
             ;; functools
             -argv -argkw -arg -applyv -applykw -apply -funcall -trampoline
-            -partial -rpartial -notfn -andfn -orfn -comp
+            -partial -rpartial -notfn -andfn -orfn -comp -juxtv -juxtkw
             ;; get/set/del/update item
             -getitem -setitem -delitem -updateitem
             -getitem-in -setitem-in -delitem-in -updateitem-in
@@ -653,7 +657,7 @@
             -subset? -superset? -disjoint?
             ;; coll get
             -contains? -get -get-in
-            -collfn -keyfn -juxtv -juxtkw -juxtv-keyfn -juxtkw-keyfn
+            -collfn -keyfn -juxtv-keyfn -juxtkw-keyfn
             ;; coll op
             -clearitem -extenditem -additem -removeitem -popitem -peekitem
             -empty! -into! -conj! -disj! -pop! -empty -into -conj -disj -pop -peek
@@ -665,15 +669,19 @@
            --each --each-indexed --dotimes
            --reduce-from --reductions-from --reduce --reductions
            ;; map filter
-           --map --map-indexed --map-unzipped --filter --remove
-           --mapcat --mapcat-indexed --mapcons --mapcons-indexed --keep --keep-indexed
+           --map --map-indexed --map-unzipped
+           --filter --remove
            --some --every --any? --all? --not-any? --not-all?
+           --mapcat --mapcat-indexed --mapcons --mapcons-indexed
+           --keep --keep-indexed
            ;; iter gen
            --iterate --iterate-n --repeatedly --repeatedly-n
            ;; iter part
            --take-while --drop-while --split-with --partition-by
            ;; iter misc
            --group-by
+           ;; functools
+           --juxtv --juxtkw
            ;; get/set/del/update item
            --updateitem --updateitem-in --update! --update-in! --update --update-in
            ;; dict op
@@ -681,6 +689,4 @@
            --map-items --map-keys --map-vals
            --filter-items --filter-keys --filter-vals
            --merge-with
-           ;; coll get
-           --juxtv --juxtkw
            ])

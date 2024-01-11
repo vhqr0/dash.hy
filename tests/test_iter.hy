@@ -34,6 +34,20 @@
     (.assertEqual self (list (--filter (even? it) (range 10))) [0 2 4 6 8])
     (.assertEqual self (list (--remove (even? it) (range 10))) [1 3 5 7 9]))
 
+  (defn test-pred [self]
+    (.assertIsNone self (--some (when (even? it) (inc it)) [1 3 5]))
+    (.assertEqual self (--some (when (even? it) (inc it)) [2 4 5]) 3)
+    (.assertIsNone self (--every (when (even? it) (inc it)) [2 4 5]))
+    (.assertEqual self (--every (when (even? it) (inc it)) [2 4 6]) 7)
+    (.assertTrue self (--any? (even? it) [2 4 5]))
+    (.assertFalse self (--any? (even? it) [1 3 5]))
+    (.assertTrue self (--all? (even? it) [2 4 6]))
+    (.assertFalse self (--all? (even? it) [1 3 4]))
+    (.assertTrue self (--not-any? (even? it) [1 3 5]))
+    (.assertFalse self (--not-any? (even? it) [2 4 4]))
+    (.assertTrue self (--not-all? (even? it) [2 4 5]))
+    (.assertFalse self (--not-all? (even? it) [2 4 6])))
+
   (defn test-mapcat [self]
     (.assertEqual self (list (--mapcat (range it) (range 5))) [0 0 1 0 1 2 0 1 2 3])
     (.assertEqual self (list (--mapcat-indexed (-argv it-index it) (range 5 10)))
@@ -47,21 +61,7 @@
 
   (defn test-keep [self]
     (.assertEqual self (list (--keep (-get it ':a) [{:a 1} {:b 2} {:a 3 :b 4}])) [1 3])
-    (.assertEqual self (list (--keep-indexed (-get it it-index) [[0] [1] [2 3 4]])) [0 4]))
-
-  (defn test-pred [self]
-    (.assertIsNone self (--some (when (even? it) (inc it)) [1 3 5]))
-    (.assertEqual self (--some (when (even? it) (inc it)) [2 4 5]) 3)
-    (.assertIsNone self (--every (when (even? it) (inc it)) [2 4 5]))
-    (.assertEqual self (--every (when (even? it) (inc it)) [2 4 6]) 7)
-    (.assertTrue self (--any? (even? it) [2 4 5]))
-    (.assertFalse self (--any? (even? it) [1 3 5]))
-    (.assertTrue self (--all? (even? it) [2 4 6]))
-    (.assertFalse self (--all? (even? it) [1 3 4]))
-    (.assertTrue self (--not-any? (even? it) [1 3 5]))
-    (.assertFalse self (--not-any? (even? it) [2 4 4]))
-    (.assertTrue self (--not-all? (even? it) [2 4 5]))
-    (.assertFalse self (--not-all? (even? it) [2 4 6]))))
+    (.assertEqual self (list (--keep-indexed (-get it it-index) [[0] [1] [2 3 4]])) [0 4])))
 
 (defclass TestIterGen [TestCase]
   (defn test-iterate [self]

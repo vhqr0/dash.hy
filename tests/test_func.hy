@@ -45,7 +45,13 @@
   (defn test-comp [self]
     (.assertEqual self ((-comp) 1) 1)
     (.assertEqual self ((-comp inc) 1) 2)
-    (.assertEqual self ((-comp inc inc) 1) 3)))
+    (.assertEqual self ((-comp inc inc) 1) 3))
+
+  (defn test-juxt [self]
+    (.assertEqual self ((-juxtv inc dec) 1) #(2 0))
+    (.assertEqual self ((-juxtkw :a inc :b dec) 1) {"a" 2 "b" 0})
+    (.assertEqual self ((--juxtv (+ it 2) (* it 2)) 3) #(5 6))
+    (.assertEqual self ((--juxtkw :a (+ it 2) :b (* it 2)) 3) {"a" 5 "b" 6})))
 
 (export
   :objects [TestFuncCall TestFuncOp])

@@ -95,12 +95,6 @@
     (.assertEqual self ((-collfn {"a" 1 "b" 2}) "a") 1)
     (.assertIsNone self ((-collfn {"a" 1 "b" 2}) "c")))
 
-  (defn test-juxt [self]
-    (.assertEqual self ((-juxtv inc dec) 1) #(2 0))
-    (.assertEqual self ((-juxtkw :a inc :b dec) 1) {"a" 2 "b" 0})
-    (.assertEqual self ((--juxtv (+ it 2) (* it 2)) 3) #(5 6))
-    (.assertEqual self ((--juxtkw :a (+ it 2) :b (* it 2)) 3) {"a" 5 "b" 6}))
-
   (defn test-keyfn [self]
     (.assertEqual self ((-juxtv-keyfn 0 2) [1 2 3]) #(1 3))
     (.assertEqual self ((-juxtkw-keyfn :a 0 :b 2) [1 2 3]) {"a" 1 "b" 3})))
