@@ -80,16 +80,6 @@
        ~$)))
 
 
-;; let macros
-
-(defmacro --if-let [test then else] `(let [it ~test] (if it ~then ~else)))
-(defmacro -if-let [binding then else]
-  (let [#(name val) binding] `(let [~name ~val] (if ~name ~then ~else))))
-(defmacro --when-let [test #* body] `(let [it ~test] (when it ~@body)))
-(defmacro -when-let [binding #* body]
-  (let [#(name val) binding] `(let [~name ~val] (when ~name ~@body))))
-
-
 ;; reduce
 
 (defmacro --each [iterable #* body]
@@ -144,12 +134,12 @@
 (defn -some [f iterable]
   (loop [s (seq iterable)]
         (unless (empty? s)
-          (--if-let (f (first s)) it (recur (rest s))))))
+          (if-let [it (f (first s))] it (recur (rest s))))))
 
 (defn -every [f iterable]
   (loop [s (seq iterable)]
         (unless (empty? s)
-          (--when-let (f (first s))
+          (when-let [it (f (first s))]
             (if (empty? (rest s)) it (recur (rest s)))))))
 
 (defn -any? [pred iterable] (not (none? (-some pred iterable))))
@@ -671,8 +661,6 @@
   :macros [
            ;; threading macros
            -> ->> as-> doto some-> some->> cond-> cond->>
-           ;; let macros
-           -if-let --if-let -when-let --when-let
            ;; reduce
            --each --each-indexed --dotimes
            --reduce-from --reductions-from --reduce --reductions

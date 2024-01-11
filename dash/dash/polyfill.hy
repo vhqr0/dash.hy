@@ -46,6 +46,17 @@
 
 
 
+(defmacro unless [test #* body]
+  `(when (not ~test) ~@body))
+
+(defmacro if-let [binding then else]
+  (let [#(name test) binding]
+    `(let [~name ~test] (if ~name ~then ~else))))
+
+(defmacro when-let [binding #* body]
+  (let [#(name test) binding]
+    `(let [~name ~test] (when ~name ~@body))))
+
 (defmacro loop [bindings form]
   (assert (even? (len bindings)))
   (let [names (lfor #(i it) (enumerate bindings) :if (even? i) it)]
@@ -68,8 +79,6 @@
             (while True
               (return ~(replace-recur form))))))))
 
-(defmacro unless [test #* body] `(when (not ~test) ~@body))
-
 
 
 (export
@@ -79,4 +88,4 @@
             symbol? keyword? sexp? symbol keyword sexp
             str? bytes? bytearray? int? float? number?
             zero? pos? neg? even? odd? inc dec]
-  :macros [loop unless])
+  :macros [unless if-let when-let loop])
