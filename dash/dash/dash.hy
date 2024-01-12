@@ -105,7 +105,7 @@
 
 (defn -each [iterable f] (--each iterable (f it)))
 (defn -each-indexed [iterable f] (--each-indexed iterable (f it-index it)))
-(defn -dotimes [n f] (--dotimes n (f it)))
+(defn -dotimes [n f] (assert (>= n 0)) (--dotimes n (f it)))
 
 (defn -reduce-from [f init iterable] (--reduce-from (f acc it) init iterable))
 (defn -reductions-from [f init iterable] (--reductions-from (f acc it) init iterable))
@@ -175,15 +175,16 @@
 (defn -iterate [f init]
   (loop [acc init] (do (yield acc) (recur (f acc)))))
 (defn -iterate-n [n f init]
+  (assert (>= n 0))
   (loop [acc init n n] (when (>= n 1) (yield acc) (recur (f acc) (dec n)))))
 (defn -range [] (-iterate inc 0))
 
 (defn -repeat [o] (loop [] (do (yield o) (recur))))
-(defn -repeat-n [n o] (--dotimes n (yield o)))
+(defn -repeat-n [n o] (assert (>= n 0)) (--dotimes n (yield o)))
 (defn -repeatedly [f] (loop [] (do (yield (f)) (recur))))
-(defn -repeatedly-n [n f] (--dotimes n (yield (f))))
+(defn -repeatedly-n [n f] (assert (>= n 0)) (--dotimes n (yield (f))))
 (defn -cycle [iterable] (-concat-in (-repeat (seq iterable))))
-(defn -cycle-n [n iterable] (-concat-in (-repeat-n n (seq iterable))))
+(defn -cycle-n [n iterable] (assert (>= n 0)) (-concat-in (-repeat-n n (seq iterable))))
 
 (defmacro --iterate [form init] `(-iterate (fn [it] ~form) ~init))
 (defmacro --iterate-n [n form init] `(-iterate-n ~n (fn [it] ~form) ~init))
@@ -213,7 +214,7 @@
 (defn -zip-fill [fill-val #* iterables] (-zip-fill-in fill-val iterables))
 
 (defn -tee [iterable] (let [s (seq iterable)] (--repeatedly (iter s))))
-(defn -tee-n [n iterable] (let [s (seq iterable)] (--repeatedly-n n (iter s))))
+(defn -tee-n [n iterable] (assert (>= n 0)) (let [s (seq iterable)] (--repeatedly-n n (iter s))))
 
 (defn -interleave-in [iterables] (-concat-in (-zip-in iterables)))
 (defn -interleave [#* iterables] (-interleave-in iterables))
@@ -225,10 +226,12 @@
 ;; iter part
 
 (defn -take [n iterable]
+  (assert (>= n 0))
   (loop [s (seq iterable) n n]
         (unless (or (<= n 0) (empty? s)) (yield (first s)) (recur (rest s) (dec n)))))
 
 (defn -drop [n iterable]
+  (assert (>= n 0))
   (loop [s (seq iterable) n n]
         (if (or (<= n 0) (empty? s)) s (recur (rest s) (dec n)))))
 
@@ -269,6 +272,7 @@
         (unless (empty? t) (yield s) (recur (rest s) (rest t)))))
 
 (defn -sized-loose-window [n iterable]
+  (assert (>= n 0))
   (loop [s (seq iterable) t (-drop n s)]
         (do (yield s) (unless (empty? t) (recur (rest s) (rest t))))))
 
@@ -284,10 +288,11 @@
           (yield (first s))
           (recur (rest s)))))
 
-(defn -take-last [n iterable] (-last (-sized-loose-window n iterable)))
-(defn -drop-last [n iterable] (-map first (-sized-window (inc n) iterable)))
+(defn -take-last [n iterable] (assert (>= n 0)) (-last (-sized-loose-window n iterable)))
+(defn -drop-last [n iterable] (assert (>= n 0)) (-map first (-sized-window (inc n) iterable)))
 
 (defn -split-at [n iterable]
+  (assert (>= n 0))
   (loop [s (seq iterable) acc (list) n n]
         (if (or (<= n 0) (empty? s))
             #(acc s)
@@ -299,11 +304,13 @@
             #(acc s)
             (recur (rest s) (-conj! acc (first s))))))
 
-(defn -partition [n iterable] (-partition-step n n iterable))
-(defn -partition-all [n iterable] (-partition-all-step n n iterable))
+(defn -partition [n iterable] (assert (>= n 0)) (-partition-step n n iterable))
+(defn -partition-all [n iterable] (assert (>= n 0)) (-partition-all-step n n iterable))
 (defn -partition-step [n step iterable]
+  (assert (>= n 0))
   (--map (list (-take n it)) (-take-nth step (-sized-window n iterable))))
 (defn -partition-all-step [n step iterable]
+  (assert (>= n 0))
   (--map (list (-take n it)) (-take-nth step (-unsized-window iterable))))
 
 (defn -partition-by [f iterable]
@@ -328,6 +335,7 @@
       (--reduce-from (inc acc) 0 iterable)))
 
 (defn -nth [iterable n]
+  (assert (>= n 0))
   (if (sequence? iterable)
       (-getitem iterable n)
       (first (-nthrest iterable n))))
@@ -336,7 +344,7 @@
   (assert (>= n 0))
   (loop [s (seq iterable) n n]
         (cond (empty? s) (raise IndexError)
-              (zero? n) s
+              (<= n 0) s
               True (recur (rest s) (dec n)))))
 
 
