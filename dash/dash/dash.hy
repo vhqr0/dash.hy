@@ -285,7 +285,6 @@
           (recur (rest s)))))
 
 (defn -take-last [n iterable] (-last (-sized-loose-window n iterable)))
-
 (defn -drop-last [n iterable] (-map first (-sized-window (inc n) iterable)))
 
 (defn -split-at [n iterable]
@@ -302,10 +301,8 @@
 
 (defn -partition [n iterable] (-partition-step n n iterable))
 (defn -partition-all [n iterable] (-partition-all-step n n iterable))
-
 (defn -partition-step [n step iterable]
   (--map (list (-take n it)) (-take-nth step (-sized-window n iterable))))
-
 (defn -partition-all-step [n step iterable]
   (--map (list (-take n it)) (-take-nth step (-unsized-window iterable))))
 
@@ -605,7 +602,8 @@
 (defn -pop! [o] (doto o (-popitem)))
 
 (defn -empty [o] (.__class__ o))
-(defn -into [o iterable] (if (seq? o) (seq (conlist-in-reverse iterable :last o)) (-into! (.copy o) iterable)))
+(defn -into [o iterable]
+  (if (seq? o) (seq (conlist-in-reverse iterable :last o)) (-into! (.copy o) iterable)))
 (defn -conj [o x] (if (seq? o) (seq (cons x o)) (-conj! (.copy o) x)))
 (defn -disj [o x] (-disj! (.copy o) x))
 (defn -pop [o] (if (seq? o) (rest o) (-pop! (.copy o))))
@@ -619,9 +617,11 @@
             -each -each-indexed -dotimes
             -reduce-from -reductions-from -reduce -reductions
             ;; map filter
-            -map -map-indexed -map-unzipped -filter -remove
-            -mapcat -mapcat-indexed -mapcons -mapcons-indexed -keep -keep-indexed
+            -map -map-indexed -map-unzipped
+            -filter -remove
             -some -every -any? -all? -not-any? -not-all?
+            -mapcat -mapcat-indexed -mapcons -mapcons-indexed
+            -keep -keep-indexed
             ;; iter gen
             -iterate -iterate-n -range
             -repeat -repeat-n -repeatedly -repeatedly-n -cycle -cycle-n
