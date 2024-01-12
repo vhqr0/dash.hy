@@ -304,13 +304,13 @@
             #(acc s)
             (recur (rest s) (-conj! acc (first s))))))
 
-(defn -partition [n iterable] (assert (>= n 0)) (-partition-step n n iterable))
-(defn -partition-all [n iterable] (assert (>= n 0)) (-partition-all-step n n iterable))
+(defn -partition [n iterable] (assert (>= n 1)) (-partition-step n n iterable))
+(defn -partition-all [n iterable] (assert (>= n 1)) (-partition-all-step n n iterable))
 (defn -partition-step [n step iterable]
-  (assert (>= n 0))
+  (assert (and (>= n 1) (>= step 1)))
   (--map (list (-take n it)) (-take-nth step (-sized-window n iterable))))
 (defn -partition-all-step [n step iterable]
-  (assert (>= n 0))
+  (assert (and (>= n 1) (>= step 1)))
   (--map (list (-take n it)) (-take-nth step (-unsized-window iterable))))
 
 (defn -partition-by [f iterable]
