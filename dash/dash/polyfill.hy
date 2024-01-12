@@ -8,6 +8,9 @@
 
 (defn ignore [#* args #** kwargs])
 
+(defmacro ignore [#* body]
+  `(do ~@body None))
+
 (defn identity    [o] o)
 (defn constantly  [o] (fn [] o))
 (defn none?       [o] (is o None))
@@ -88,4 +91,4 @@
             symbol? keyword? sexp? symbol keyword sexp
             str? bytes? bytearray? int? float? number?
             zero? pos? neg? even? odd? inc dec]
-  :macros [unless if-let when-let loop])
+  :macros [ignore unless if-let when-let loop])
