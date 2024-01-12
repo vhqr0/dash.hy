@@ -38,6 +38,8 @@
 (defn str?        [o] (isinstance o str))
 (defn bytes?      [o] (isinstance o bytes))
 (defn bytearray?  [o] (isinstance o bytearray))
+(defn memoryview? [o] (isinstance o memoryview))
+(defn slice?      [o] (isinstance o slice))
 (defn int?        [o] (isinstance o int))
 (defn float?      [o] (isinstance o float))
 (defn number?     [o] (isinstance o #(int float)))
@@ -91,6 +93,6 @@
             type? module? fn? method? callable?
             iter? iterable? hashable? countable? reversible? sequence? set? map?
             symbol? keyword? sexp? symbol keyword sexp
-            str? bytes? bytearray? int? float? number?
+            str? bytes? bytearray? memoryview? slice? int? float? number?
             zero? pos? neg? even? odd? inc dec]
   :macros [comment ignore unless if-let when-let loop])
