@@ -6,6 +6,8 @@
       keyword  hy.models.Keyword
       sexp     hy.models.Expression)
 
+(defmacro comment [#* body])
+
 (defn ignore [#* args #** kwargs])
 
 (defmacro ignore [#* body]
@@ -91,4 +93,4 @@
             symbol? keyword? sexp? symbol keyword sexp
             str? bytes? bytearray? int? float? number?
             zero? pos? neg? even? odd? inc dec]
-  :macros [ignore unless if-let when-let loop])
+  :macros [comment ignore unless if-let when-let loop])
