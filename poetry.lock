@@ -13,12 +13,12 @@ files = [
 
 [[package]]
 name = "hy"
-version = "0.27.0"
+version = "0.28.0"
 description = "A Lisp dialect embedded in Python"
 optional = false
 python-versions = ">= 3.8, < 3.13"
 files = [
-    {file = "hy-0.27.0.tar.gz", hash = "sha256:5d646e32b01fea740057b856639c672489d27ec7f9cc882363951c748d2b5ceb"},
+    {file = "hy-0.28.0.tar.gz", hash = "sha256:ae202f0b5e9094489af2a41b2cee9e0f776d0572da69cb108db2935a7224e17a"},
 ]
 
 [package.dependencies]
@@ -26,5 +26,5 @@ funcparserlib = ">=1.0,<2.0"
 
 [metadata]
 lock-version = "2.0"
-python-versions = ">=3.11,<3.13"
-content-hash = "da052d6c981be20f78f9f6539b2ed830a9aa259088179b0c624464e38e880b4f"
+python-versions = ">=3.12,<3.13"
+content-hash = "2dd530d66d241a725f227f1373f7912b66aa03268e60e7bbe7915878effd6569"

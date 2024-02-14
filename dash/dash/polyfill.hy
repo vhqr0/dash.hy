@@ -6,12 +6,7 @@
       keyword  hy.models.Keyword
       sexp     hy.models.Expression)
 
-(defmacro comment [#* body])
-
 (defn ignore [#* args #** kwargs])
-
-(defmacro ignore [#* body]
-  `(do ~@body None))
 
 (defn identity    [o] o)
 (defn constantly  [o] (fn [] o))
@@ -52,6 +47,11 @@
 (defn dec         [i] (- i 1))
 
 
+
+(defmacro comment [#* body])
+
+(defmacro ignore [#* body]
+  `(do ~@body None))
 
 (defmacro unless [test #* body]
   `(when (not ~test) ~@body))

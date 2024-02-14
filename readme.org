@@ -1,0 +1,143 @@
+#+TITLE: dash.hy
+
+A mordern list library for Hy, inspired by Clojure and dash.el.
+
+* dash
+
+Include =dash.dash= and =dash.misc=.
+
+** dash.strtools
+
+str/bytes methods wrapper, such as =s.starts-with?=, =s.concats=,
+=s.strip=, etc.
+
+** dash.operator
+
+=hy.pyops= wrapper, such as =o.add=, =o.mul=, =o.sub=, =o.eq?=, etc.
+
+** dash.lodash
+
+Mangled name translation for Python, such as:
+
+- =-map=: =_map=
+- =-asssoc!=: =do_assoc=
+- =str?=: =is_str=
+- =o.eq?=: =o_is_eq=
+- =s.starts-with?=: =s_is_starts_with=
+
+* dash.dash
+
+Include =dash.dash.polyfill=, =dash.dash.cons= and =dash.dash.dash=.
+
+** dash.dash.polyfill
+
+Polyfill of Hy/Python, contains lots of simple functions/macros, such
+as =identity=, =none?=, =fn?=, =str?=, =inc=, =unless=, =if-let=,
+=loop=, etc.
+
+** dash.dash.cons
+
+Implementation of traditional Lisp cons struct and Clojure seq struct.
+
+*** dash.dash.cons.cons
+
+#+begin_src hy
+  (cons 1)                   ; (1)
+  (cons 1 2)                 ; (1 . 2)
+  (cons 1 (cons 2 3))        ; (1 2 . 3)
+  (cons 1 (cons 2 (cons 3))) ; (1 2 3)
+#+end_src
+
+Emacs Lisp style of =car=, =cdr=, =caar=, =cddr=, =car-safe=,
+=cdr-safe=, =setcar=, =setcdr=, etc.
+
+*** dash.dash.cons.seq
+
+#+begin_src hy
+  (seq)                 ; _
+  (seq [1 2 3])         ; 1 2 3
+  (seq (fn [] [1 2 3])) ; 1 2 3
+  (lazy-seq [1 2 3])    ; 1 2 3
+#+end_src
+
+Clojure style lazy map:
+
+#+begin_src hy
+  (defn my-map [f coll]
+    (let [s (seq coll)]
+      (if (empty? s)
+          (seq)
+          (lazy-seq
+            (cons (f (first s)) (my-map f (rest s)))))))
+#+end_src
+
+Python style lazy map:
+
+#+begin_src hy
+  (defn my-map [f coll]
+    (loop [s (seq coll)]
+          (unless (empty? s)
+            (yield (f (first s)))
+            (recur (rest s)))))
+#+end_src
+
+** dash.dash.dash
+
+Main iter/func/coll functions/macros, start with =-= for function and
+=--= for corresponding ap macro.
+
+- threading macros: =->=, =->>=, =doto=, etc.
+- reduce/map/filter: =-each=, =-dotimes=, =-reduce=, =-map=,
+  =-filter=, =-mapcat=, =-any?=, =-all?=, etc.
+- iter gen: =-iterate=, =-repeat=, =-repeatedly=, =-cycle=, etc.
+- iter mux: =-concat=, =-zip=, =-interleave=, =-interpose=, etc.
+- iter part: =-take=, =-drop=, =-last=, =-butlast=, =split=,
+  =partition=, etc.
+- iter op: =-count=, =-nth=, etc.
+- iter misc: =-replace=, =-flatten=, =-group-by=, etc.
+- func tools: =-trampoline=, =-partial=, =-notfn=, =-andfn=, =-orfn=,
+  =-comp=, =-juxt=, etc.
+- item tools: =-assoc=, =-assoc-in=, =-dissoc=, =-dissoc-in=,
+  =-update=, =-update-in=, etc.
+- dict tools: =-keys=, =-vals=, =-items=, =-merge=, etc.
+- set tools: =-union=, =-difference=, =-intersection=, etc.
+- coll tools: =-get=, =-get-in=, =empty=, =-into=, =conj=, =disj=,
+  =-peek=, =-pop=, etc.
+
+
+* dash.misc
+
+Misc functions/macros, such as =defmain=, =parse-args=.
+
+** dash.misc.do!
+
+Macro for writing sync and async code parallelly.
+
+#+begin_src hy
+  (do/a!
+    (defclass (name/a! Stream) []
+      (defn/a! read [self]
+        (wait/a! ((name/a! real-read))))
+      (defn/a! write [self b]
+        (wait/a! ((name/a! real-write) b)))))
+#+end_src
+
+Expands to:
+
+#+begin_src hy
+  (do
+    (defclass SyncStream []
+      (defn read [self]
+        (sync-real-read))
+      (defn write [self b]
+        (sync-real-write b)))
+    (defclass AsyncStream []
+      (defn/a read [self]
+        (await (async-real-read)))
+      (defn/a write [self b]
+        (await (async-real-write b)))))
+#+end_src
+
+=do/a!= expands all =/a!= forms to corresponding sync/async forms,
+such as =(name/a! Stream)= expands to =SyncStream= in sync context and
+=AsyncStream= in async context.
