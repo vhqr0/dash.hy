@@ -16,7 +16,7 @@
 (defn concatb-in [bs] (join-in b"" bs))
 (defn concatb [#* bs] (concatb-in bs))
 
-(defn split-lines [o] (.splitlines o))
+(defn split-lines [o [keepends False]] (.splitlines o :keepends keepends))
 
 (defn split  [o [sep None] [maxsplit -1]] (.split  o sep maxsplit))
 (defn rsplit [o [sep None] [maxsplit -1]] (.rsplit o sep maxsplit))

@@ -27,6 +27,7 @@
 (defn fn?         [o] (isinstance o FunctionType))
 (defn method?     [o] (isinstance o MethodType))
 (defn callable?   [o] (isinstance o Callable))
+(defn exception?  [o] (isinstance o Exception))
 (defn iter?       [o] (isinstance o Iterator))
 (defn generator?  [o] (isinstance o Generator))
 (defn iterable?   [o] (isinstance o Iterable))
@@ -115,9 +116,9 @@
 
 (export
   :objects [model keyword symbol sexp tuplemodel listmodel dictmodel setmodel strmodel bytesmodel
-            ignore with-ignore identity constantly none? true? false? bool? type? module? fn? method? callable?
+            ignore with-ignore identity constantly none? true? false? bool? type? module? fn? method? callable? exception?
             iter? generator? iterable? coll? hashable? countable? reversible? sequence? map? set? tuple? list? dict?
             model? keyword? symbol? sexp? tuplemodel? listmodel? dictmodel? setmodel? strmodel? bytesmodel?
             str? bytes? bytearray? memoryview? slice? int? float? complex? number?
             zero? pos? neg? even? odd? inc dec]
-  :macros [comment ignore ignore-as unless if-let when-let loop])
+  :macros [comment ignore with-ignore unless if-let when-let loop])

@@ -1,12 +1,9 @@
 (require
   dash.dash.polyfill *)
 
-(eval-and-compile
-  (import
-    dash.dash.polyfill *
-    dash.dash.cons *))
-
 (import
+  dash.dash.polyfill *
+  dash.dash.cons *
   functools [singledispatch]
   collections.abc [Sequence Mapping Set MutableSequence MutableMapping MutableSet]
   collections [defaultdict])
@@ -14,71 +11,32 @@
 
 ;; threading macros
 
-(eval-and-compile
-  (defn -thread-first-form [x form]
-    (if (sexp? form) (let [#(car #* forms) form] `(~car ~x ~@forms)) `(~form ~x)))
-  (defn -thread-last-form [x form]
-    (if (sexp? form) `(~@form ~x) `(~form ~x))))
-
 (defmacro -> [x #* body]
-  (loop [s (seq body) acc x]
-        (if (empty? s) acc (recur (rest s) (-thread-first-form acc (first s))))))
+  (-reduce-from
+    (fn [acc it]
+      (match it
+             #(x #* xs) `(~x ~acc ~@xs)
+             _ `(~it ~acc)))
+    x body))
 
 (defmacro ->> [x #* body]
-  (loop [s (seq body) acc x]
-        (if (empty? s) acc (recur (rest s) (-thread-last-form acc (first s))))))
+  (-reduce-from
+    (fn [acc it]
+      (match it
+             #(#* xs) `(~@xs ~acc)
+             _ `(~it ~acc)))
+    x body))
 
 (defmacro as-> [x name #* body]
-  `(let [~name ~x]
-     ~@(loop [s (seq body)]
-             (unless (empty? s)
-               (yield `(setv ~name ~(first s)))
-               (recur (rest s))))
-     ~name))
+  (-reduce-from
+    (fn [acc it]
+      `(let [~name ~acc] ~it))
+    x body))
 
 (defmacro doto [x #* body]
   (let [$ (hy.gensym)]
     `(let [~$ ~x]
-       ~@(loop [s (seq body)]
-               (unless (empty? s)
-                 (yield `(-> ~$ ~(first s)))
-                 (recur (rest s))))
-       ~$)))
-
-(defmacro some-> [x #* body]
-  (let [$ (hy.gensym)]
-    `(let [~$ ~x]
-       ~@(loop [s (seq body)]
-               (unless (empty? s)
-                 (yield `(unless (none? ~$) (setv ~$ (-> ~$ ~(first s)))))
-                 (recur (rest s))))
-       ~$)))
-
-(defmacro some->> [x #* body]
-  (let [$ (hy.gensym)]
-    `(let [~$ ~x]
-       ~@(loop [s (seq body)]
-               (unless (empty? s)
-                 (yield `(unless (none? ~$) (setv ~$ (->> ~$ ~(first s)))))
-                 (recur (rest s))))
-       ~$)))
-
-(defmacro cond-> [x #* clauses]
-  (let [$ (hy.gensym)]
-    `(let [~$ ~x]
-       ~@(loop [s (seq clauses)]
-               (unless (empty? s)
-                 (yield `(when ~(first s) (setv ~$ (-> ~$ ~(first (rest s))))))
-                 (recur (rest (rest s)))))
-       ~$)))
-
-(defmacro cond->> [x #* clauses]
-  (let [$ (hy.gensym)]
-    `(let [~$ ~x]
-       ~@(loop [s (seq clauses)]
-               (unless (empty? s)
-                 (yield `(when ~(first s) (setv ~$ (->> ~$ ~(first (rest s))))))
-                 (recur (rest (rest s)))))
+       ~@(-map (fn [it] `(-> ~$ ~it)) body)
        ~$)))
 
 
@@ -708,7 +666,7 @@
             ]
   :macros [
            ;; threading macros
-           -> ->> as-> doto some-> some->> cond-> cond->>
+           -> ->> as-> doto
            ;; reduce
            --each --each-indexed --dotimes
            --reduce-from --reductions-from --reduce --reductions
