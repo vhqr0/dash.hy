@@ -3,16 +3,8 @@
 
 (import
   dash.dash.polyfill *
+  dash.dash.metas *
   dash.strtools :as s)
-
-
-;; metas
-
-;; for class C, object o: C(o) cast object o to C, if o is instance of
-;; C, avoid creating new object, return o itself.
-(defn cast-meta-call [self [o None]]
-  (if (isinstance o self) o (.__call__ (super cast-meta self) o)))
-(setv cast-meta (type "cast-meta" #(type) {"__call__" cast-meta-call}))
 
 
 ;; cons
@@ -156,6 +148,37 @@
 (defn empty? [o] (none? (realize (seq o))))
 (defn first [o] (car-safe (realize (seq o))))
 (defn rest [o] (cdr-safe (realize (seq o))))
+(defn second [o] (first (rest o)))
+
+(defn last [iterable]
+  (loop [s (seq iterable)]
+        (cond (empty? s) None
+              (empty? (rest s)) (first s)
+              True (recur (rest s)))))
+
+(defn butlast [iterable]
+  (loop [s (seq iterable)]
+        (when (and (not (empty? s)) (not (empty? (rest s))))
+          (yield (first s))
+          (recur (rest s)))))
+
+(defn count [iterable]
+  (if (countable? iterable)
+      (len iterable)
+      (let [acc 0] (for [_ iterable] (+= acc 1)) acc)))
+
+(defn nth [iterable n]
+  (assert (>= n 0))
+  (if (sequence? iterable)
+      (get iterable n)
+      (first (nthrest iterable n))))
+
+(defn nthrest [iterable n]
+  (assert (>= n 0))
+  (loop [s (seq iterable) n n]
+        (cond (empty? s) (raise IndexError)
+              (<= n 0) s
+              True (recur (rest s) (dec n)))))
 
 (defmacro lazy-seq [#* body]
   `(seq (lazy ~@body)))
@@ -171,6 +194,6 @@
             ;; delay
             delay delay? realized? realize force
             ;; seq
-            seq seq? empty? first rest
+            seq seq? empty? first rest second last butlast count nth nthrest
             ]
   :macros [lazy lazy-seq])

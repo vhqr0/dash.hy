@@ -91,18 +91,12 @@ Main iter/func/coll functions/macros, start with =-= for function and
   =-filter=, =-mapcat=, =-any?=, =-all?=, etc.
 - iter gen: =-iterate=, =-repeat=, =-repeatedly=, =-cycle=, etc.
 - iter mux: =-concat=, =-zip=, =-interleave=, =-interpose=, etc.
-- iter part: =-take=, =-drop=, =-last=, =-butlast=, =split=,
-  =partition=, etc.
-- iter op: =-count=, =-nth=, etc.
+- iter part: =-take=, =-drop=, =-split=, =-partition=, etc.
 - iter misc: =-replace=, =-flatten=, =-group-by=, etc.
-- func tools: =-trampoline=, =-partial=, =-notfn=, =-andfn=, =-orfn=,
-  =-comp=, =-juxt=, etc.
-- item tools: =-assoc=, =-assoc-in=, =-dissoc=, =-dissoc-in=,
-  =-update=, =-update-in=, etc.
-- dict tools: =-keys=, =-vals=, =-items=, =-merge=, etc.
+- func tools: =-trampoline=, =-partial=, =-comp=, =-curry=, =-juxt=, etc.
+- coll tools: =-get=, =-assoc!=, =-update!=, =-into!=, =-conj!=, etc.
+- dict tools: =-items=, =-keys=, =-vals=, =-merge=, etc.
 - set tools: =-union=, =-difference=, =-intersection=, etc.
-- coll tools: =-get=, =-get-in=, =empty=, =-into=, =conj=, =disj=,
-  =-peek=, =-pop=, etc.
 
 
 * dash.misc

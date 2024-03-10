@@ -55,10 +55,10 @@
                        (if (and (symbol? car) (s.ends-with? car "/a!"))
                            (a!replace a? ((get a!macros car (if a? 0 1)) #* forms))
                            (sexp (-map (-partial a!replace a?) form))))
-        (isinstance form hy.models.Tuple) (hy.models.Tuple (-map (-partial a!replace a?) form))
-        (isinstance form hy.models.List)  (hy.models.List  (-map (-partial a!replace a?) form))
-        (isinstance form hy.models.Set)   (hy.models.Set   (-map (-partial a!replace a?) form))
-        (isinstance form hy.models.Dict)  (hy.models.Dict  (-map (-partial a!replace a?) form))
+        (tuplemodel? form) (tuplemodel (-map (-partial a!replace a?) form))
+        (listmodel?  form) (listmodel  (-map (-partial a!replace a?) form))
+        (dictmodel?  form) (dictmodel  (-map (-partial a!replace a?) form))
+        (setmodel?   form) (setmodel   (-map (-partial a!replace a?) form))
         True form))
 
 (defmacro do/a! [#* body]

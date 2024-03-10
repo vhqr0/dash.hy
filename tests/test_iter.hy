@@ -7,6 +7,23 @@
   dash.operator :as o
   dash.strtools :as s)
 
+(defclass TestSeq [TestCase]
+  (defn test-last [self]
+    (.assertEqual self (last (range 5)) 4)
+    (.assertEqual self (last (range 0)) None)
+    (.assertEqual self (list (butlast (range 5))) [0 1 2 3])
+    (.assertEqual self (list (butlast (range 0))) []))
+
+  (defn test-count [self]
+    (.assertEqual self (count [5 6 7 8 9 10]) 6)
+    (.assertEqual self (count (seq (range 10))) 10))
+
+  (defn test-nth [self]
+    (.assertEqual self (nth [5 6 7 8 9 10] 2) 7)
+    (.assertEqual self (nth (range 5 10) 2) 7)
+    (with [_ (.assertRaises self IndexError)]
+      (nth (range 5 10) 10))))
+
 (defclass TestIterReduceMapFilter [TestCase]
   (defn test-each [self]
     (.assertEqual self (let [acc [[1] [2 1] [3 2 1]]] (-each acc (fn [it] (-conj! it 0))) acc)
@@ -146,10 +163,6 @@
     (.assertEqual self (list (-map first (-sized-loose-window 10 (range 5)))) [0]))
 
   (defn test-last [self]
-    (.assertEqual self (-last (range 5)) 4)
-    (.assertEqual self (-last (range 0)) None)
-    (.assertEqual self (list (-butlast (range 5))) [0 1 2 3])
-    (.assertEqual self (list (-butlast (range 0))) [])
     (.assertEqual self (list (-take-last 3 (range 5))) [2 3 4])
     (.assertEqual self (list (-take-last 10 (range 5))) [0 1 2 3 4])
     (.assertEqual self (list (-take-last 0 (range 5))) [])
@@ -186,17 +199,6 @@
                   [[0 1 2] [2 3 4] [4 5 6] [6 7 8] [8 9]])
     (.assertEqual self (list (--partition-by (even? it) [2 4 5 6 8])) [[2 4] [5] [6 8]])))
 
-(defclass TestIterOp [TestCase]
-  (defn test-count [self]
-    (.assertEqual self (-count [5 6 7 8 9 10]) 6)
-    (.assertEqual self (-count (range 10)) 10))
-
-  (defn test-nth [self]
-    (.assertEqual self (-nth [5 6 7 8 9 10] 2) 7)
-    (.assertEqual self (-nth (range 5 10) 2) 7)
-    (with [_ (.assertRaises self IndexError)]
-      (-nth (range 5 10) 10))))
-
 (defclass TestIterMisc [TestCase]
   (defn test-trans [self]
     (.assertEqual self (list (-replace {0 "N/A"} [1 0 2 0 3])) [1 "N/A" 2 "N/A" 3])
@@ -210,4 +212,4 @@
     (.assertEqual self (--group-by (even? it) (range 10)) {True [0 2 4 6 8] False [1 3 5 7 9]})))
 
 (export
-  :objects [TestIterReduceMapFilter TestIterGen TestIterMux TestIterPart TestIterOp TestIterMisc])
+  :objects [TestSeq TestIterReduceMapFilter TestIterGen TestIterMux TestIterPart TestIterMisc])

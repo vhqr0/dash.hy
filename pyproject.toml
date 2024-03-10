@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dash-hy"
-version = "0.1.0"
+version = "1.1.0"
 description = "A modern list library for Hy"
 authors = ["vhqr0 <zq_cmd@163.com>"]
 readme = "readme.org"
