@@ -1,35 +1,72 @@
 (require
-  dash.dash *)
+  dash.core *)
 
 (import
-  dash.dash *
-  dash.strtools :as s
-  functools [singledispatch])
+  dash.core *
+  dash.metaclasses [singleton-meta]
+  dataclasses [dataclass]
+  typing [Any])
 
-;; applicative let
 (defmacro alet [bindings #* body]
-  `(let ~bindings
-     ~(let [names (list (-take-nth 2 bindings))]
-        (--reduce-from
-          `(.apply ~acc ~it)
-          `(.wrap ~(first names)
-                  ~(--reduce-from
-                     `(fn [~it] ~acc)
-                     `(do ~@body)
-                     (reversed names)))
-          names))))
+  #[["Applicative functor let."
+     ["1. Parallel computing and binding functors `fvs'"
+      "2. Wrap body to a curried applicative functor `af'"
+      "3. Apply functors `fvs' to Applicative functor `af'"]
 
-;; monad let
+     ::example
+     (alet [a (just 1)
+            b (just 2)
+            c (just 3)]
+       (+ a b c))
+     ;; just(6)
+     ;; macroexpand
+     (let [a (just 1)
+           b (just 2)
+           c (just 3)]
+       (-> (fn [a] (fn [b] (fn [c] (+ a b c))))
+           (monad.fapply a b c)))
+     ]]
+  (let [ls (list (take-nth 2 bindings))]
+    (assert (all? symbol? ls))
+    `(let ~bindings
+       (-> ~(ap-reduce `(fn [~it] ~acc) `(do ~@body) (reversed ls))
+           (monad.fapply ~@ls)))))
+
 (defmacro mlet [bindings #* body]
-  (->> (-partition-all 2 bindings)
-       list
-       reversed
-       (--reduce-from
-         (let [#(l r) it]
-           (cond (= l :setv) `(let ~r ~acc)
-                 (symbol? l) `(.bind ~r (fn [~l] ~acc))
-                 True `(.bind ~r (fn [it] (let [~l it] ~acc)))))
-         `(do ~@body))))
+  #[["Monad let."
+
+     ::example
+     (mlet [a (just 1)
+            b (just (inc a))
+            c (just (inc b))]
+       (just (+ a b c)))
+     ;; just(6)
+     ;; macroexpand
+     (.bind (just 1)
+            (fn [a]
+              (.bind (just (inc a))
+                     (fn [b]
+                       (.bind (just (inc b))
+                              (fn [c]
+                                (just (+ a b c))))))))
+     ]]
+  (let [$ (hy.gensym)]
+    (match bindings
+           #() `(do ~@body)
+           #(l r #* bindings) (let [body `(mlet [~@bindings] ~@body)]
+                                (cond (= l :setv)
+                                      (do
+                                        `(let ~r ~body))
+                                      (symbol? l)
+                                      (do
+                                        `(.bind ~r (fn [~l] ~body)))
+                                      (hyseq? l)
+                                      (do
+                                        `(.bind ~r (fn [~$] (let [~l ~$] ~body))))
+                                      True
+                                      (do
+                                        (raise TypeError))))
+           _ (raise IndexError))))
 
 
 
@@ -42,11 +79,10 @@
   (defn __or__ [self fm]
     (.bind self fm))
 
-  (defn __str__ [self]
-    (s.format "<{}>" self.__class__.__name__))
-
-  (defn __repr__ [self]
-    (str self))
+  (defn [staticmethod] fapply [f #* mvs]
+    (match mvs
+           #() (f)
+           #(mv #* mvs) (* (.map mv f) #* mvs)))
 
   (defn [classmethod] wrap [cls [v None]]
     (raise NotImplementedError))
@@ -54,15 +90,12 @@
   (defn [classmethod] zero [cls]
     (cls.wrap))
 
-  (defn unwrap [cls]
+  (defn unwrap [self]
     (raise NotImplementedError))
 
   ;; functor
   (defn map [self f]
     (raise NotImplementedError))
-
-  (defn update [self f #* args #** kwargs]
-    (.map self (fn [it] (f it #* args #** kwargs))))
 
   ;; applicative
   (defn apply [self mv]
@@ -72,163 +105,240 @@
   (defn bind [self fm]
     (raise NotImplementedError)))
 
-(defn monad? [o] (isinstance o monad))
-
 
+;;; mixins
 
 (defclass zero-monad-mixin []
-  (defn __bool__ [self] False)
-  (defn unwrap [self])
-  (defn map [self f] self)
-  (defn apply [self mv] self)
-  (defn bind [self fm] self))
+  (defn __bool__ [self]
+    False))
 
-(defclass value-monad-mixin []
-  (defn __init__ [self [v None]]
-    (setv self.v v))
+(defclass [(dataclass :slots True)] empty-monad-mixin [:metaclass singleton-meta])
 
-  (defn __str__ [self]
-    (s.format "<{} {}>" self.__class__.__name__ (repr self.v)))
+(defclass [(dataclass :order True :slots True)] data-monad-mixin []
+  (setv #^ Any data None))
 
-  (defn unwrap [self]
-    self.v))
-
-(defclass zero-value-monad-mixin [value-monad-mixin zero-monad-mixin])
-
-(defclass nonzero-value-monad-mixin [value-monad-mixin]
-  (defn map [self f]
-    (self.wrap (f self.v)))
-
-  (defn apply [self mv]
-    (if mv (-> (.unwrap mv) (self.v) (self.wrap)) mv))
-
-  (defn bind [self fm]
-    (fm self.v)))
-
-(defclass fn-value-monad-mixin [value-monad-mixin]
-  (defn [classmethod] wrap-fn [cls f]
-    (cls f))
-
-  (defn run [self #* args #** kwargs]
-    (self.v #* args #** kwargs)))
+(defclass fn-monad-mixin [data-monad-mixin]
+  (defn __call__ [self #* args #** kwargs]
+    (self.data #* args #** kwargs)))
 
 
+;;; mid
 
-(defclass mid [nonzero-value-monad-mixin monad]
-  (defn [classmethod] wrap [cls [v None]] (cls v)))
+(defclass mid [data-monad-mixin monad]
+  (setv __slots__ #())
+
+  (defn [classmethod] wrap [cls [v None]]
+    (mid v))
+
+  (defn unwrap [self]
+    (match self
+           (mid x) x
+           _ (raise TypeError)))
+
+
+  (defn map [self f]
+    (match self
+           (mid v) (mid (f v))
+           _ (raise TypeError)))
+
+  (defn apply [self mv]
+    (match self
+           (mid f) (.map mv f)
+           _ (raise TypeError)))
+
+  (defn bind [self fm]
+    (match self
+           (mid v) (fm v)
+           _ (raise TypeError))))
+
+
+;;; maybe
 
 (defclass maybe [monad]
   (defn [classmethod] wrap [cls [v None]]
-    (if (none? v) (nothing) (just v))))
+    (if (none? v) (nothing) (just v)))
 
-(defclass just [nonzero-value-monad-mixin maybe])
-(defclass nothing [zero-monad-mixin maybe])
+  (defn unwrap [self]
+    (match self
+           (just v) v
+           (nothing) None
+           _ (raise TypeError)))
 
-(defclass either [value-monad-mixin monad]
-  (defn [classmethod] wrap [cls [v None]] (right v))
-  (defn [classmethod] zero [cls] (left)))
+  (defn map [self f]
+    (match self
+           (just v) (just (f v))
+           (nothing) self
+           _ (raise TypeError)))
 
-(defclass right [nonzero-value-monad-mixin either])
-(defclass left [zero-value-monad-mixin either])
+  (defn apply [self mv]
+    (match self
+           (just f) (.map mv f)
+           (nohting) self
+           _ (raise TypeError)))
+
+  (defn bind [self fm]
+    (match self
+           (just v) (fm v)
+           (nothing) self
+           _ (raise TypeError))))
+
+(defclass just [data-monad-mixin maybe]
+  (setv __slots__ #()))
+
+(defclass nothing [zero-monad-mixin empty-monad-mixin maybe]
+  (setv __slots__ #()))
 
 
+;;; either
+
+(defclass either [monad]
+  (defn [classmethod] wrap [cls [v None]]
+    (right v))
+
+  (defn [classmethod] zero [cls]
+    (left))
+
+  (defn unwrap [self]
+    (match self
+           (right v) v
+           (left v) v
+           _ (raise TypeError)))
+
+  (defn map [self]
+    (match self
+           (right v) (right (f v))
+           (left _) self
+           _ (raise TypeError)))
+
+  (defn apply [self mv]
+    (match self
+           (right f) (.map mv f)
+           (left _) self
+           _ (raise TypeError)))
+
+  (defn bind [self fm]
+    (match self
+           (right v) (fm v)
+           (left _) self
+           _ (raise TypeError))))
+
+(defclass right [data-monad-mixin either]
+  (setv __slots__ #()))
+
+(defclass left [zero-monad-mixin data-monad-mixin either]
+  (setv __slots__ #()))
+
+
+;;; mtry
 
 (defmacro mtry! [#* body]
-  `(mtry.wrap-fn (fn [] ~@body)))
+  `(mtry.run (fn [] ~@body)))
 
-(defclass mtry [value-monad-mixin monad]
-  (defn [classmethod] wrap-fn [cls f]
+(defclass mtry [monad]
+  (defn [classmethod] run [cls f]
     (try
       (success (f))
       (except [e Exception]
         (failure e))))
 
-  (defn [classmethod] wrap [cls [v None]] (success v))
-  (defn [classmethod] zero [cls] (failure (Exception))))
+  (defn [classmethod] wrap [cls [v None]]
+    (success v))
 
-(defclass success [nonzero-value-monad-mixin mtry])
+  (defn [classmethod] zero [cls]
+    (failure (Exception)))
 
-(defclass failure [zero-value-monad-mixin mtry]
-  (defn unwrap [self] (raise self.v)))
+  (defn unwrap [self]
+    (match self
+           (success v) v
+           (failure e) (raise e)
+           _ (raise TypeError)))
+
+  (defn map [self f]
+    (match self
+           (success v) (mtry! (f v))
+           (failure _) self
+           _ (raise TypeError)))
+
+  (defn apply [self mv]
+    (match self
+           (success f) (.map mv f)
+           (failure _) self
+           _ (raise TypeError)))
+
+  (defn bind [self fm]
+    (match self
+           (success v) (fm v)
+           (failure _) self
+           _ (raise TypeError))))
+
+(defclass success [data-monad-mixin mtry]
+  (setv __slots__ #()))
+
+(defclass failure [zero-monad-mixin data-monad-mixin mtry]
+  (setv __slots__ #()))
 
 
+;;; state
 
 (defmacro state! [#* body]
   `(state (fn [s] ~@body)))
 
 ;; s->(v,s)
-(defclass state [fn-value-monad-mixin monad]
+(defclass state [fn-monad-mixin monad]
+  (setv __slots__ #())
+
   (defn [classmethod] wrap [cls [v None]]
-    (cls.wrap-fn (fn [s] #(v s))))
+    (state! #(v s)))
 
   ;; mt :: s->(t,s)
   ;; self :: s->(a,s) :: ma
   ;; fm :: a->(s->(b,s)) :: a->mb
   ;; self->fm->(s->(b,s)) :: self->fm->mb
   (defn bind [self fm]
-    (self.wrap-fn
-      (fn [s]
-        (let [#(v ns) (.run self s)]
-          (.run (fm v) ns))))))
-
-(defmacro reader! [#* body]
-  `(reader (fn [e] ~@body)))
-
-;; e->v
-(defclass reader [fn-value-monad-mixin monad]
-  (defn [classmethod] wrap [cls [v None]]
-    (cls.wrap-fn (fn [e] v)))
-
-  ;; mt :: e->t
-  ;; self :: e->a :: ma
-  ;; fm :: a->(e->b) :: a->mb
-  ;; self->fm->(e->b) :: self->fm->mb
-  (defn bind [self fm]
-    (self.wrap-fn
-      (fn [e]
-        (.run (fm (.run self e)) e)))))
+    (state!
+      (let [#(v ns) (self s)]
+        ((fm v) ns)))))
 
 
+;;; cont
 
 (defmacro cont! [#* body]
   `(cont (fn [k] ~@body)))
 
 ;; (v->r)->r
-(defclass cont [fn-value-monad-mixin monad]
+(defclass cont [fn-monad-mixin monad]
+  (setv __slots__ #())
+
   (defn [classmethod] wrap [cls [v None]]
-    (cls (fn [k] (k v))))
+    (cont! (k v)))
 
   ;; mt :: (t->r)->r
   ;; self :: (a->r)->r :: ma
   ;; fm :: a->((b->r)->r) :: a->mb
   ;; self->fm->((b->r)->r) :: self->fm->mb
   (defn bind [self fm]
-    (self.wrap-fn
-      (fn [k]
-        (.run self (fn [v] (.run (fm v) k))))))
+    (cont! (self (fn [v] ((fm v) k))))))
 
-  ;; mt :: (t->r)->r
-  ;; cc :: (a->((b->r)->r))->((a->r)->r) :: (a->mb)->ma
-  ;; cc->((a->r)->r) :: cc->ma
-  (defn [classmethod] call-cc [cls cc]
-    (cls.wrap-fn
-      (fn [k]
-        ;; v :: a
-        ;; k :: a->r
-        ;; exit :: a->((b->r)->r) :: a->mb
-        (let [exit (fn [v] (cls.wrap-fn (fn [_] (k v))))]
-          ;; cc :: (a->mb)->ma
-          ;; exit :: a->mb
-          ;; (cc exit) :: (a->r)->r :: ma
-          ;; k :: a->r
-          (.run (cc exit) k))))))
+;; mt :: (t->r)->r
+;; f :: (a->((b->r)->r))->((a->r)->r) :: (a->mb)->ma
+;; f->((a->r)->r) :: f->ma
+(defn callCC [f]
+  (cont!
+    ;; v :: a
+    ;; k :: a->r
+    ;; exit :: a->((b->r)->r) :: a->mb
+    (let [exit (fn [v] (cont (fn [_] (k v))))]
+      ;; f :: (a->mb)->ma
+      ;; exit :: a->mb
+      ;; (f exit) :: (a->r)->r :: ma
+      ;; k :: a->r
+      ((f exit) k))))
 
-(defmacro call-cc [exit #* body]
-  `(cont.call-cc (fn [~exit] ~@body)))
+(defmacro callCC! [exit #* body]
+  `(callCC (fn [~exit] ~@body)))
 
 
 
 (export
-  :objects [monad monad? mid maybe just nothing either right left mtry success failure
-            state reader cont]
-  :macros [alet mlet mtry! state! reader! cont! call-cc])
+  :objects [monad mid maybe just nothing either right left mtry success failure state cont callCC]
+  :macros [alet mlet mtry! state! cont! callCC!])

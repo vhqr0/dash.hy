@@ -87,7 +87,7 @@ Main iter/func/coll functions/macros, start with =-= for function and
 =--= for corresponding ap macro.
 
 - threading macros: =->=, =->>=, =doto=, etc.
-- reduce/map/filter: =-each=, =-dotimes=, =-reduce=, =-map=,
+- reduce/map/filter: =-doiter=, =-dotimes=, =-reduce=, =-map=,
   =-filter=, =-mapcat=, =-any?=, =-all?=, etc.
 - iter gen: =-iterate=, =-repeat=, =-repeatedly=, =-cycle=, etc.
 - iter mux: =-concat=, =-zip=, =-interleave=, =-interpose=, etc.

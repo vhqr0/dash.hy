@@ -5,8 +5,7 @@
 (import
   unittest [TestCase]
   dash *
-  dash.monad *
-  dash.operator :as o)
+  dash.monad *)
 
 (defclass TestMonad [TestCase]
   (defn test-mid [self]
@@ -17,8 +16,7 @@
                              (+ a b c))
                            (.unwrap))
                   6)
-    (.assertEqual self (-> (mlet [a (mid 1)
-                                  b (mid (+ a 2))
+    (.assertEqual self (-> (mlet [#(a b) (mid #(1 3))
                                   c (mid (+ b 3))]
                              (mid (+ a b c)))
                            (.unwrap))
@@ -46,26 +44,73 @@
 
   (defn test-try [self]
     (.assertEqual self (.unwrap
-                         (alet [a (mtry-on 1)
-                                b (mtry-on 2)]
+                         (alet [a (mtry! 1)
+                                b (mtry! 2)]
                            (+ a b)))
                   3)
     (with [_ (.assertRaises self RuntimeError)]
-      (-> (alet [a (mtry-on 1)
-                 b (mtry-on (raise RuntimeError))]
+      (-> (alet [a (mtry! 1)
+                 b (mtry! (raise RuntimeError))]
             (+ a b))
           (.unwrap))))
 
   (defn test-state [self]
-    (.assertEqual self (.run (mlet [a (state.wrap "hello")
-                                    b (state-on #((+ a " ") (inc s)))]
-                               (state-on #((+ b "world") (inc s))))
-                             1)
-                  #("hello world" 3))
-    (.assertEqual self (.run (mlet [greeting (reader-on (-get e "greeting" "hi"))]
-                               (reader-on (+ greeting ", " (-get e "to" "world"))))
-                             {"greeting" "hello" "to" "emacs"})
-                  "hello, emacs")))
+    (.assertEqual self ((mlet [a (state.wrap "hello")
+                               b (state! #((+ a " ") (inc s)))]
+                          (state! #((+ b "world") (inc s))))
+                         1)
+                  #("hello world" 3)))
+
+  (defn test-cont [self]
+    (.assertEqual self
+                  ((callCC! exit1
+                            (mlet [a (cont.wrap 1)
+                                   b (cont! (k (inc a)))
+                                   c (cont! (k (inc b)))]
+                              (cont! (k (+ a b c)))))
+                    identity)
+                  6)
+    (.assertEqual self
+                  ((callCC! exit1
+                            (mlet [a (cont.wrap 1)
+                                   b (cont! (k (inc a)))
+                                   c (exit1 b)]
+                              (cont! (k (+ a b c)))))
+                    identity)
+                  2)
+    (.assertEqual self
+                  ((callCC! exit1
+                            (mlet [a (cont.wrap 1)
+                                   b (callCC! exit2
+                                              (mlet [c (cont.wrap a)
+                                                     d (cont! (k (inc c)))]
+                                                (cont! (k (+ c d)))))
+                                   e (cont! (k (inc b)))]
+                              (cont! (k (+ a b e)))))
+                    identity)
+                  8)
+    (.assertEqual self
+                  ((callCC! exit1
+                            (mlet [a (cont.wrap 1)
+                                   b (callCC! exit2
+                                              (mlet [c (cont.wrap a)
+                                                     d (cont! (k (inc c)))]
+                                                (exit1 (+ c d))))
+                                   e (cont! (k (inc b)))]
+                              (cont! (k (+ a b e)))))
+                    identity)
+                  3)
+    (.assertEqual self
+                  ((callCC! exit1
+                            (mlet [a (cont.wrap 1)
+                                   b (callCC! exit2
+                                              (mlet [c (cont.wrap a)
+                                                     d (exit2 (inc c))]
+                                                (cont! (k (+ c d)))))
+                                   e (cont! (k (inc b)))]
+                              (cont! (k (+ a b e)))))
+                    identity)
+                  6)))
 
 (export
   :objects [TestMonad])

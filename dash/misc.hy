@@ -1,8 +1,8 @@
 (require
-  dash.dash *)
+  dash.core *)
 
 (import
-  dash.dash *
+  dash.core *
   dash.strtools :as s)
 
 
@@ -10,9 +10,9 @@
 (defn parse-args [spec [args None] #** parser-args]
   (import argparse)
   (let [parser (argparse.ArgumentParser #** parser-args)]
-    (--each spec
+    (--doiter spec
             (let [#(args kwargs) (-split-with (-notfn keyword?) it)
-                  kwargs (dict (-map-unzipped (fn [k v] #(k.name v)) (-partition-all 2 kwargs)))]
+                  kwargs (dict (--map (let [#(k v) it] #(k.name v)) (-partition-all 2 kwargs)))]
               (.add-argument parser #* args #** kwargs)))
     (.parse-args parser args)))
 
@@ -45,6 +45,8 @@
                            (fn [bindings #* body] `(for [~@bindings] ~@body)))
                 'with/a! #((fn [bindings #* body] `(with/a [~@bindings] ~@body))
                             (fn [bindings #* body] `(with [~@bindings] ~@body)))
+                'loop/a! #((fn [bindings form] `(loop [~@bindings] ~form))
+                            (fn [bindings form] `(loop :async [~@bindings] ~form)))
                 'fn/a! #((fn [#* body] `(fn/a ~@body))
                           (fn [#* body] `(fn ~@body)))
                 'defn/a! #((fn [#* body] `(defn/a ~@body))
@@ -55,10 +57,10 @@
                        (if (and (symbol? car) (s.ends-with? car "/a!"))
                            (a!replace a? ((get a!macros car (if a? 0 1)) #* forms))
                            (sexp (-map (-partial a!replace a?) form))))
-        (tuplemodel? form) (tuplemodel (-map (-partial a!replace a?) form))
-        (listmodel?  form) (listmodel  (-map (-partial a!replace a?) form))
-        (dictmodel?  form) (dictmodel  (-map (-partial a!replace a?) form))
-        (setmodel?   form) (setmodel   (-map (-partial a!replace a?) form))
+        (hytuple? form) (hytuple (-map (-partial a!replace a?) form))
+        (hylist?  form) (hylist  (-map (-partial a!replace a?) form))
+        (hydict?  form) (hydict  (-map (-partial a!replace a?) form))
+        (hyset?   form) (hyset   (-map (-partial a!replace a?) form))
         True form))
 
 (defmacro do/a! [#* body]
