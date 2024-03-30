@@ -1,24 +1,22 @@
 (require
-  dash *
-  dash.monad *)
+  dash *)
 
 (import
   unittest [TestCase]
-  dash *
-  dash.monad *)
+  dash *)
 
 (defclass TestMonad [TestCase]
-  (defn test-mid [self]
-    (.assertEqual self (-> (mid 1) (.map inc) (.unwrap)) 2)
-    (.assertEqual self (-> (alet [a (mid 1)
-                                  b (mid 2)
-                                  c (mid 3)]
+  (defn test-box [self]
+    (.assertEqual self (-> (box 1) (.map inc) (.unwrap)) 2)
+    (.assertEqual self (-> (alet [a (box 1)
+                                  b (box 2)
+                                  c (box 3)]
                              (+ a b c))
                            (.unwrap))
                   6)
-    (.assertEqual self (-> (mlet [#(a b) (mid #(1 3))
-                                  c (mid (+ b 3))]
-                             (mid (+ a b c)))
+    (.assertEqual self (-> (mlet [#(a b) (box #(1 3))
+                                  c (box (+ b 3))]
+                             (box (+ a b c)))
                            (.unwrap))
                   10))
 
@@ -63,53 +61,53 @@
 
   (defn test-cont [self]
     (.assertEqual self
-                  ((callCC! exit1
-                            (mlet [a (cont.wrap 1)
-                                   b (cont! (k (inc a)))
-                                   c (cont! (k (inc b)))]
-                              (cont! (k (+ a b c)))))
-                    identity)
+                  (.unwrap
+                    (callCC! exit1
+                             (mlet [a (cont.wrap 1)
+                                    b (cont! (k (inc a)))
+                                    c (cont! (k (inc b)))]
+                               (cont! (k (+ a b c))))))
                   6)
     (.assertEqual self
-                  ((callCC! exit1
-                            (mlet [a (cont.wrap 1)
-                                   b (cont! (k (inc a)))
-                                   c (exit1 b)]
-                              (cont! (k (+ a b c)))))
-                    identity)
+                  (.unwrap
+                    (callCC! exit1
+                             (mlet [a (cont.wrap 1)
+                                    b (cont! (k (inc a)))
+                                    c (exit1 b)]
+                               (cont! (k (+ a b c))))))
                   2)
     (.assertEqual self
-                  ((callCC! exit1
-                            (mlet [a (cont.wrap 1)
-                                   b (callCC! exit2
-                                              (mlet [c (cont.wrap a)
-                                                     d (cont! (k (inc c)))]
-                                                (cont! (k (+ c d)))))
-                                   e (cont! (k (inc b)))]
-                              (cont! (k (+ a b e)))))
-                    identity)
+                  (.unwrap
+                    (callCC! exit1
+                             (mlet [a (cont.wrap 1)
+                                    b (callCC! exit2
+                                               (mlet [c (cont.wrap a)
+                                                      d (cont! (k (inc c)))]
+                                                 (cont! (k (+ c d)))))
+                                    e (cont! (k (inc b)))]
+                               (cont! (k (+ a b e))))))
                   8)
     (.assertEqual self
-                  ((callCC! exit1
-                            (mlet [a (cont.wrap 1)
-                                   b (callCC! exit2
-                                              (mlet [c (cont.wrap a)
-                                                     d (cont! (k (inc c)))]
-                                                (exit1 (+ c d))))
-                                   e (cont! (k (inc b)))]
-                              (cont! (k (+ a b e)))))
-                    identity)
+                  (.unwrap
+                    (callCC! exit1
+                             (mlet [a (cont.wrap 1)
+                                    b (callCC! exit2
+                                               (mlet [c (cont.wrap a)
+                                                      d (cont! (k (inc c)))]
+                                                 (exit1 (+ c d))))
+                                    e (cont! (k (inc b)))]
+                               (cont! (k (+ a b e))))))
                   3)
     (.assertEqual self
-                  ((callCC! exit1
-                            (mlet [a (cont.wrap 1)
-                                   b (callCC! exit2
-                                              (mlet [c (cont.wrap a)
-                                                     d (exit2 (inc c))]
-                                                (cont! (k (+ c d)))))
-                                   e (cont! (k (inc b)))]
-                              (cont! (k (+ a b e)))))
-                    identity)
+                  (.unwrap
+                    (callCC! exit1
+                             (mlet [a (cont.wrap 1)
+                                    b (callCC! exit2
+                                               (mlet [c (cont.wrap a)
+                                                      d (exit2 (inc c))]
+                                                 (cont! (k (+ c d)))))
+                                    e (cont! (k (inc b)))]
+                               (cont! (k (+ a b e))))))
                   6)))
 
 (export

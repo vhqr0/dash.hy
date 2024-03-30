@@ -11,7 +11,9 @@
   `(do ~@body None))
 
 (eval-and-compile
-  (defn ignore [#* args]))
+  (defn ignore [#* args #** kwargs]))
+
+;; if when unless
 
 (defmacro unless [test #* body]
   `(when (not ~test) ~@body))
@@ -28,12 +30,70 @@
   `(let [it ~test]
      (unless it ~@body)))
 
+;; doiter dotimes
+
+(defmacro ap-doiter [iterable form]
+  `(for [it ~iterable] ~form))
+
+(defmacro ap-dotimes [n form]
+  `(ap-doiter (range ~n) ~form))
+
 (eval-and-compile
-  (import functools [reduce :as _reduce])
+  (defn doiter [iterable f]
+    (ap-doiter iterable (f it)))
+  (defn dotimes [n f]
+    (ap-dotimes n (f it))))
+
+;; reduce map filter remove
+
+(defmacro make-transducer [#* body]
+  (import itertools [batched])
+  (let [meta (dict (batched body 2))]
+    `(fn [rf]
+       (fn [#* args]
+         ~@(ap-when (.get meta ':nonlocals)
+                    `((nonlocal ~@it)))
+         (match args
+                #() ~(.get meta ':init '(rf))
+                #(acc) ~(.get meta ':comp '(rf acc))
+                #(acc it) ~(.get meta ':step '(rf acc it))
+                _ (raise IndexError))))))
+
+(eval-and-compile
+  (import
+    functools [reduce :as _reduce]
+    builtins [map :as _map]
+    builtins [filter :as _filter]
+    itertools [filterfalse :as _remove]))
+
+(eval-and-compile
   (defn reduce [#* args]
     (match args
            #(f iterable) (_reduce f iterable)
            #(f init iterable) (_reduce f iterable init)
+           _ (raise IndexError))))
+
+(eval-and-compile
+  (defn map [#* args]
+    (match args
+           #(f) (make-transducer
+                  :step (rf acc (f it)))
+           #(f #* iterables) (_map f #* iterables))))
+
+(eval-and-compile
+  (defn filter [#* args]
+    (match args
+           #(pred) (make-transducer
+                     :step (if (pred it) (rf acc it) acc))
+           #(pred iterable) (_filter pred iterable)
+           _ (raise IndexError))))
+
+(eval-and-compile
+  (defn remove [#* args]
+    (match args
+           #(pred) (make-transducer
+                     :step (if (pred it) acc (rf acc it)))
+           #(pred iterable) (_remove pred iterable)
            _ (raise IndexError))))
 
 (defmacro ap-reduce [#* args]
@@ -42,17 +102,23 @@
          #(form init iterable) `(reduce (fn [acc it] ~form) ~init ~iterable)
          _ (raise IndexError)))
 
-(defmacro ap-map [form iterable]
-  `(map (fn [it] ~form) ~iterable))
+(defmacro ap-map [#* args]
+  (match args
+         #(form) `(map (fn [it] ~form))
+         #(form iterable) `(map (fn [it] ~form) ~iterable)
+         _ (raise IndexError)))
 
-(defmacro ap-filter [form iterable]
-  `(filter (fn [it] ~form) ~iterable))
+(defmacro ap-filter [#* args]
+  (match args
+         #(form) `(filter (fn [it] ~form))
+         #(form iterable) `(filter (fn [it] ~form) ~iterable)
+         _ (raise IndexError)))
 
-(defn doiter [iterable f]
-  (for [x iterable] (f x)))
-
-(defmacro ap-doiter [iterable form]
-  `(doiter ~iterable (fn [it] ~form)))
+(defmacro ap-remove [#* args]
+  (match args
+         #(form) `(remove (fn [it] ~form))
+         #(form iterable) `(remove (fn [it] ~form) ~iterable)
+         _ (raise IndexError)))
 
 
 ;;; types
@@ -111,6 +177,13 @@
   (defn dec   [i] (- i 1)))
 
 
+;;; listtools
+
+(eval-and-compile
+  (defn list-into! [l iterable] (.extend l iterable) l)
+  (defn list-conj! [l x] (.append l x) l))
+
+
 ;;; hymodels
 
 (eval-and-compile
@@ -140,11 +213,11 @@
 ;;; functools
 
 (eval-and-compile
-  (import functools [partial])
   (defn identity [o] o)
   (defn constantly [o] (fn [] o)))
 
 (eval-and-compile
+  (import functools [partial])
   (defn curry [#* args]
     (match args
            #() curry
@@ -179,40 +252,14 @@
     (fn [x] (all (ap-map (it x) preds))))
   (setv complement notfn))
 
-
-;;; itertools
-
 (eval-and-compile
-  (import itertools [filterfalse :as remove]))
-
-(defmacro ap-remove [form iterable]
-  `(remove (fn [it] ~form) ~iterable))
-
-(eval-and-compile
-  (import itertools [chain :as concat])
-  (setv concat-in concat.from-iterable)
-  (defn mapcat [f iterable]
-    (concat-in (map f iterable))))
-
-(defmacro ap-mapcat [form iterable]
-  `(mapcat (fn [it] ~form) ~iterable))
-
-(eval-and-compile
-  (defn any? [#* args]
-    (match args
-           #(iterable) (any iterable)
-           #(pred iterable) (any (map pred iterable))
-           _ (raise IndexError)))
-  (defn all? [#* args]
-    (match args
-           #(iterable) (all iterable)
-           #(pred iterable) (all (map pred iterable)))))
-
-(defmacro ap-any? [form iterable]
-  `(any? (fn [it] ~form) ~iterable))
-
-(defmacro ap-all? [form iterable]
-  `(all? (fn [it] ~form) ~iterable))
+  (defn completing [f [cf identity]]
+    (fn [#* args]
+      (match args
+             #() (f)
+             #(acc) (cf acc)
+             #(acc it) (f acc it)
+             _ (raise IndexError)))))
 
 
 ;;; threading macros
@@ -302,6 +349,7 @@
                                        #(bindings form) #(False bindings form)
                                        _ (raise IndexError))
         ls (->> (batched bindings 2) (ap-map (let [#(l r) it] l)) list)]
+    (assert (all (map symbol? ls)))
     (defn recur-replace [form]
       (if (sexp? form)
           (let [#(x #* xs) form]

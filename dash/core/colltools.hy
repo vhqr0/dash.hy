@@ -1,10 +1,14 @@
 (require
   dash.core.polyfill *
-  dash.core.sequence *)
+  dash.core.monad *
+  dash.core.sequence *
+  dash.core.seqtools *)
 
 (import
   dash.core.polyfill *
+  dash.core.monad *
   dash.core.sequence *
+  dash.core.seqtools *
   functools [singledispatch])
 
 
@@ -83,7 +87,7 @@
       (len c)
       (let [acc 0]
         (->> acc
-             (do (for [x c] (+= acc 1)))))))
+             (do (ap-doiter c (+= acc 1)))))))
 
 (defn -reversed [c]
   (if (reversible? c)
