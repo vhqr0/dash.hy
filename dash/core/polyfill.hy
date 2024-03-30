@@ -54,7 +54,6 @@
          ~@(ap-when (.get meta ':nonlocals)
                     `((nonlocal ~@it)))
          (match args
-                #() ~(.get meta ':init '(rf))
                 #(acc) ~(.get meta ':comp '(rf acc))
                 #(acc it) ~(.get meta ':step '(rf acc it))
                 _ (raise IndexError))))))

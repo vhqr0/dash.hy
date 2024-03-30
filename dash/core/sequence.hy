@@ -202,17 +202,11 @@
             acc
             (recur (rest s) (f acc (first s))))))
 
-(defn reducex [#* args]
-  (match args
-         #(f iterable) (reducex f (f) iterable)
-         #(f init iterable) (f (unreduced (reducex-step f init iterable)))
-         _ (raise IndexError)))
+(defn reducex [f init iterable]
+  (f (unreduced (reducex-step f init iterable))))
 
-(defn transduce [#* args]
-  (match args
-         #(xform f iterable) (transduce xform f (f) iterable)
-         #(xform f init iterable) (reducex (xform f) init iterable)
-         _ (raise IndexError)))
+(defn transduce [xform f init iterable]
+  (reducex (xform f) init iterable))
 
 ;; It's obviously that our reducing function doesn't support init.
 (defmacro ap-reducex [form init iterable]
