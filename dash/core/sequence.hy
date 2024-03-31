@@ -120,21 +120,21 @@
 ;;; seq
 
 (defmacro seq! [#* body]
-  `(seq (delay! ~@body)))
+  `(seq (lazy! ~@body)))
 
-(defclass seq [delay :metaclass cast-meta]
+(defclass seq [lazy :metaclass cast-meta]
   #[["Clojure style lazy sequence."
 
      :seqable (Optional (| (cons Any seqable) iterable))
-     :seq (delay (Optional (cons Any seq)))
+     :seq (lazy (Optional (cons Any seq)))
 
      ::example
      (seq)                             ;; ()
      (seq (clist 1 2 3))               ;; (1 2 3)
      (seq (range 3))                   ;; (. (range 3))   => 0 1 2
      (seq (cons 1 (range 3)))          ;; (1 . (range 3)) => 1 0 1 2
-     (seq (delay! (cons 1 (range 3)))) ;; (. (delay ...)) => 1 0 1 2
-     (seq! (cons 1 (range 3)))         ;; (. (delay ...)) => 1 0 1 2
+     (seq (lazy! (cons 1 (range 3))))  ;; (. (lazy ...)) => 1 0 1 2
+     (seq! (cons 1 (range 3)))         ;; (. (lazy ...)) => 1 0 1 2
 
      ::operations
      [seq! seq? empty? first rest]
@@ -147,15 +147,17 @@
     (loop [x x]
           (cond (none? x) None
                 (cons? x) (cons (car x) (cls (cdr x)))
-                (delay? x) (recur (realize! x))
+                (lazy? x) (recur (realize! x))
                 (iter? x) (recur (try (cons (next x) x) (except [StopIteration])))
                 (iterable? x) (recur (iter x))
                 True (raise TypeError))))
 
   (defn __init__ [self [x None]]
-    (cond (none? x) (.__init__ (super) None True)
-          (cons? x) (.__init__ (super) (cons (car x) (seq (cdr x))) True)
-          True      (.__init__ (super) (fn [] (seq.trampoline x)))))
+    (.__init__ (super)
+               (match x
+                      None (now)
+                      (cons x xs) (now (cons x (seq xs)))
+                      _ (later! (seq.trampoline x)))))
 
   (defn __iter__ [self]
     (loop [x self]
@@ -178,7 +180,7 @@
                 (s.join-in " " (map repr realized))
                 (if (none? unrealized)
                     ""
-                    (s.format " . {}" (delay.__repr__ unrealized)))))))
+                    (s.format " . {}" (lazy.__repr__ unrealized)))))))
 
 (defn seq? [x] (isinstance x seq))
 (defn empty? [x] (none? (realize! (seq x))))

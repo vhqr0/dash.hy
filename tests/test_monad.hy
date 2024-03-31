@@ -42,13 +42,13 @@
 
   (defn test-try [self]
     (.assertEqual self (.unwrap
-                         (alet [a (mtry! 1)
-                                b (mtry! 2)]
+                         (alet [a (try! 1)
+                                b (try! 2)]
                            (+ a b)))
                   3)
     (with [_ (.assertRaises self RuntimeError)]
-      (-> (alet [a (mtry! 1)
-                 b (mtry! (raise RuntimeError))]
+      (-> (alet [a (try! 1)
+                 b (try! (raise RuntimeError))]
             (+ a b))
           (.unwrap))))
 
@@ -62,52 +62,52 @@
   (defn test-cont [self]
     (.assertEqual self
                   (.unwrap
-                    (callCC! exit1
-                             (mlet [a (cont.wrap 1)
-                                    b (cont! (k (inc a)))
-                                    c (cont! (k (inc b)))]
-                               (cont! (k (+ a b c))))))
+                    (with-cc exit1
+                      (mlet [a (cont.wrap 1)
+                             b (cont! (k (inc a)))
+                             c (cont! (k (inc b)))]
+                        (cont! (k (+ a b c))))))
                   6)
     (.assertEqual self
                   (.unwrap
-                    (callCC! exit1
-                             (mlet [a (cont.wrap 1)
-                                    b (cont! (k (inc a)))
-                                    c (exit1 b)]
-                               (cont! (k (+ a b c))))))
+                    (with-cc exit1
+                      (mlet [a (cont.wrap 1)
+                             b (cont! (k (inc a)))
+                             c (exit1 b)]
+                        (cont! (k (+ a b c))))))
                   2)
     (.assertEqual self
                   (.unwrap
-                    (callCC! exit1
-                             (mlet [a (cont.wrap 1)
-                                    b (callCC! exit2
-                                               (mlet [c (cont.wrap a)
-                                                      d (cont! (k (inc c)))]
-                                                 (cont! (k (+ c d)))))
-                                    e (cont! (k (inc b)))]
-                               (cont! (k (+ a b e))))))
+                    (with-cc exit1
+                      (mlet [a (cont.wrap 1)
+                             b (with-cc exit2
+                                 (mlet [c (cont.wrap a)
+                                        d (cont! (k (inc c)))]
+                                   (cont! (k (+ c d)))))
+                             e (cont! (k (inc b)))]
+                        (cont! (k (+ a b e))))))
                   8)
     (.assertEqual self
                   (.unwrap
-                    (callCC! exit1
-                             (mlet [a (cont.wrap 1)
-                                    b (callCC! exit2
-                                               (mlet [c (cont.wrap a)
-                                                      d (cont! (k (inc c)))]
-                                                 (exit1 (+ c d))))
-                                    e (cont! (k (inc b)))]
-                               (cont! (k (+ a b e))))))
+                    (with-cc exit1
+                      (mlet [a (cont.wrap 1)
+                             b (with-cc exit2
+                                 (mlet [c (cont.wrap a)
+                                        d (cont! (k (inc c)))]
+                                   (exit1 (+ c d))))
+                             e (cont! (k (inc b)))]
+                        (cont! (k (+ a b e))))))
                   3)
     (.assertEqual self
                   (.unwrap
-                    (callCC! exit1
-                             (mlet [a (cont.wrap 1)
-                                    b (callCC! exit2
-                                               (mlet [c (cont.wrap a)
-                                                      d (exit2 (inc c))]
-                                                 (cont! (k (+ c d)))))
-                                    e (cont! (k (inc b)))]
-                               (cont! (k (+ a b e))))))
+                    (with-cc exit1
+                      (mlet [a (cont.wrap 1)
+                             b (with-cc exit2
+                                 (mlet [c (cont.wrap a)
+                                        d (exit2 (inc c))]
+                                   (cont! (k (+ c d)))))
+                             e (cont! (k (inc b)))]
+                        (cont! (k (+ a b e))))))
                   6)))
 
 (export

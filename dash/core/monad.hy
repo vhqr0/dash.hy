@@ -15,9 +15,9 @@
 
      ::operations
      {:wrap        [monad? monad.wrap moand.zero monad.unwrap]
-      :functor     [monad.map]
-      :applicative [alet fapply monad.apply *]
-      :monad       [mlet monad.bind |]}
+      :functor     [fmap monad.map]
+      :applicative [alet fapply monad.apply]
+      :monad       [mlet monad.bind]}
 
      ::wrap
      (box.wrap 1)        ;; (box 1)
@@ -32,16 +32,27 @@
      (.map (nohting) inc) ;; (nothing)
 
      ::applicative
-     (.apply (box inc) (box 1))    ;; (box 2)
-     (.apply (just inc) (just 1))  ;; (just 2)
-     (.apply (just inc) (nothing)) ;; (nothing)
+     (.apply (box inc) (box 1))          ;; (box 2)
+     (.apply (just inc) (just 1))        ;; (just 2)
+     (.apply (just inc) (nothing))       ;; (nothing)
+     ((box inc) (box 1))                 ;; (box 2)
+     ((just inc) (just 1))               ;; (just 2)
+     ((just inc) (nothing))              ;; (nothing)
+     ((fmap inc) (box 1))                ;; (box 2)
+     ((fmap inc) (just 1))               ;; (just 2)
+     ((fmap inc) (nothing))              ;; (nothing)
+     ((box (just inc)) (box (just 1)))   ;; (box (just 2))
+     ((box (just inc)) (box (nothing)))  ;; (box (nothing))
+     ((box (fmap inc)) (box (just 1)))   ;; (box (just 2))
+     ((fmap (just inc)) (box (just 1)))  ;; (box (just 2))
+     ((fmap (fmap inc)) (box (just 1)))  ;; (box (just 2))
+     ((fmap (fmap inc)) (box (nothing))) ;; (box (nothing))
+     ((fmap (fmap inc)) (nothing))       ;; (nothing)
      :::applicative.complex
      ...
      (-> (just (curry 2 +))
          (.apply (just 1))
          (.apply (just 2)))
-     ...
-     (* (just (curry 2 +)) (just 1) (just 2))
      ...
      (fapply (curry 2 +) (just 1) (just 2))
      ...
@@ -68,11 +79,10 @@
      ...
      ]]
 
-  (defn __mul__ [self mv]
+  ;; Applicative functor itself is also a lifted function (ma->mb).
+  ;; Therefore the constructor is a corresponding lifting function ((a->b)->(ma->mb)).
+  (defn __call__ [self mv]
     (.apply self mv))
-
-  (defn __or__ [self fm]
-    (.bind self fm))
 
   (defn [classmethod] wrap [cls [v None]]
     (raise NotImplementedError))
@@ -94,10 +104,13 @@
 
 (defn monad? [x] (isinstance x monad))
 
+;; fmap is a lifting function whose type cannot be determined until
+;; the mv is received.
+(defn [(curry 2)] fmap [f mv]
+  (.map mv f))
+
 (defn fapply [f #* mvs]
-  (match mvs
-         #() (f)
-         #(mv #* mvs) (* (.map mv f) #* mvs)))
+  (ap-reduce (acc it) (fmap f) mvs))
 
 
 ;;; let macros
@@ -191,8 +204,6 @@
 
 ;;; box
 
-;; also known as id monad
-
 (defclass box [data-monad-mixin monad]
   #[["Box Monad, just boxing a vlaue, also known as ID Monad."
 
@@ -241,24 +252,30 @@
   (let [v (f x.data #* args #** kwargs)]
     (reset! x v)))
 
+(defmacro ap-swap! [x form]
+  `(swap! ~x (fn [it] ~form)))
+
 
 ;;; maybe
 
 (defclass maybe [monad]
-  #[["Maybe Monad, represent a maybe nothing (nil/null/none) result."
+  #[["Maybe Monad, represent a result maybe nothing (nil/null/none)."
 
      ::operations
      [just nothing maybe? just? nothing?]
 
      ::example
-     (just 1)                              ;; (just 1)
-     (nothing)                             ;; (nothing)
-     (| (just 1) (fn [v] (just (inc v))))  ;; (just 2)
-     (| (nothing) (fn [v] (just (inc v)))) ;; (nothing)
+     (just 1)                                  ;; (just 1)
+     (nothing)                                 ;; (nothing)
+     (.bind (just 1) (fn [v] (just (inc v))))  ;; (just 2)
+     (.bind (nothing) (fn [v] (just (inc v)))) ;; (nothing)
      ]]
 
   (defn [classmethod] wrap [cls [v None]]
-    (if (none? v) (nothing) (just v)))
+    (just v))
+
+  (defn [classmethod] zero [cls]
+    (nothing))
 
   (defn unwrap [self]
     (match self
@@ -297,82 +314,31 @@
 
 ;;; either
 
+(defmacro try! [#* body]
+  `(either.try (fn [] ~@body)))
+
+(defmacro except! [e excs #* body]
+  `(either.except ~e ~excs (fn [e] ~@body)))
+
 (defclass either [monad]
-  #[["Either Monad, like maybe but the error branch carries data (exception/error/code)."
+  #[["Either Monad, like maybe but the error branch carries data (errcode/error/exception)."
 
      ::operations
-     [right left either? right? left?]
+     [try! success failure either? success? failure? either.try either.except]
 
      ::example
-     (right 1)                                 ;; (right 1)
-     (left "404")                              ;; (left "404")
-     (| (right 1) (fn [v] (right (inc v))))    ;; (right 2)
-     (| (left "404") (fn [v] (right [inc v]))) ;; (left "404")
+     (success 1)                                         ;; (success 1)
+     (failure "404")                                     ;; (failure "404")
+     (try! 1)                                            ;; (success 1)
+     (try! (/ 1 0))                                      ;; (failure ZeroDivisionError)
+     (.bind (success 1) (fn [v] (success (inc v))))      ;; (success 2)
+     (.bind (failure "404") (fn [v] (success [inc v])))  ;; (failure "404")
+     (.bind (success 2) (fn [v] (try! (/ 4 v))))         ;; (success 2)
+     (.bind (success 0) (fn [v] (try! (/ 4 v))))         ;; (failure ZeroDivisionError)
+     (.bind (failure TypeError) (fn [v] (try! (/ 4 v)))) ;; (failure TypeError)
      ]]
 
-  (defn [classmethod] wrap [cls [v None]]
-    (right v))
-
-  (defn [classmethod] zero [cls]
-    (left))
-
-  (defn unwrap [self]
-    (match self
-           (right v) v
-           (left _) None
-           _ (raise TypeError)))
-
-  (defn map [self]
-    (match self
-           (right v) (right (f v))
-           (left _) self
-           _ (raise TypeError)))
-
-  (defn apply [self mv]
-    (match self
-           (right f) (.map mv f)
-           (left _) self
-           _ (raise TypeError)))
-
-  (defn bind [self fm]
-    (match self
-           (right v) (fm v)
-           (left _) self
-           _ (raise TypeError))))
-
-(defclass right [data-monad-mixin either]
-  (setv __slots__ #()))
-
-(defclass left [zero-monad-mixin data-monad-mixin either]
-  (setv __slots__ #()))
-
-(defn either? [x] (isinstance x either))
-(defn right? [x] (isinstance x right))
-(defn left? [x] (isinstance x left))
-
-
-;;; mtry
-
-(defmacro mtry! [#* body]
-  `(mtry.run (fn [] ~@body)))
-
-(defclass mtry [monad]
-  #[["Try Monad, also known as Error Monad or Exception Monad, like either, but:"
-     ["1. In addition to explicitly returning errors, exceptions of map/bind will also ehter the error branch."
-      "2. Error data is limited to exceptions, and is raised when unwrap."]
-
-     ::operations
-     [mtry! success failure mtry? success? failure? mtry.run]
-
-     ::example
-     (mtry! 1)                                        ;; (success 1)
-     (mtry! (/ 1 0))                                  ;; (failure ZeroDivisionError)
-     (| (success 2) (fn [v] (mtry! (/ 4 v))))         ;; (success 2)
-     (| (success 0) (fn [v] (mtry! (/ 4 v))))         ;; (failure ZeroDivisionError)
-     (| (failure TypeError) (fn [v] (mtry! (/ 4 v)))) ;; (failure TypeError)
-     ]]
-
-  (defn [classmethod] run [cls f]
+  (defn [classmethod] try [cls f]
     (try
       (success (f))
       (except [e Exception]
@@ -382,17 +348,26 @@
     (success v))
 
   (defn [classmethod] zero [cls]
-    (failure (Exception)))
+    (failure))
 
   (defn unwrap [self]
     (match self
            (success v) v
-           (failure e) (raise e)
+           (failure e) (raise (cond (raisible? e) e
+                                    (none? e) (Exception)
+                                    True (Exception e)))
            _ (raise TypeError)))
+
+  (defn except [self excs f]
+    (try!
+      (try
+        (.unwrap self)
+        (except [e excs]
+          (f e)))))
 
   (defn map [self f]
     (match self
-           (success v) (mtry! (f v))
+           (success v) (success (f v))
            (failure _) self
            _ (raise TypeError)))
 
@@ -408,64 +383,114 @@
            (failure _) self
            _ (raise TypeError))))
 
-(defclass success [data-monad-mixin mtry]
+(defclass success [data-monad-mixin either]
   (setv __slots__ #()))
 
-(defclass failure [zero-monad-mixin data-monad-mixin mtry]
+(defclass failure [zero-monad-mixin data-monad-mixin either]
   (setv __slots__ #()))
 
-(defn mtry? [x] (isinstance x mtry))
+(defn either? [x] (isinstance x either))
 (defn success? [x] (isinstance x success))
 (defn failure? [x] (isinstance x failure))
 
 
 ;;; delay
 
-(defmacro delay! [#* body]
-  `(delay (fn [] ~@body)))
+(defmacro later! [#* body]
+  `(later (fn [] ~@body)))
 
-(defclass [(dataclass :slots True)] delay [monad]
-  #[["Lazy computing wrapper."
+(defclass delay [monad]
+  #[["delay Monad, represent the result of a delay calculation."
+     ["The final result can be unwrap, or force a delay to now."]
 
      ::operations
-     [delay! delay? realized? realize]
+     [later! now later delay? now? later? delay.force]
 
      ::example
-     (setv d (delay! (+ 1 1)))  ; (delay :unrealized ...)
-     (realized? d)              ; False
-     (realize! d)               ; 2
-     d                          ; (delay :realized 2)
+     (later! (+ 1 2))                                ;; (later (fn [] (+ 1 2)))
+     (.force (later! (+ 1 2)))                       ;; (now 3)
+     (.map (now 1) inc)                              ;; (now 2)
+     (.map (later! (+ 1 2)) inc)                     ;; (later (fn [] (inc (+ 1 2))))
+     (.bind (now 1) (fn [v] (now (inc v))))          ;; (now 2)
+     (.bind (later! (+ 1 2)) (fn [v] (now (inc v)))) ;; (later (fn [] (.unwrap (now (inc (+ 1 2))))))
      ]]
 
-  #^ Any data
-  (setv #^ bool realized False)
-
   (defn [classmethod] wrap [cls [v None]]
-    (delay v True))
+    (now v))
 
   (defn unwrap [self]
     (match self
-           (delay v True) v
-           (delay f False) (f)
+           (now v) v
+           (later f) (f)
            _ (raise TypeError)))
 
+  (defn force [self]
+    (now (.unwrap self)))
+
   (defn map [self f]
-    (delay! (f (.unwrap self))))
+    (match self
+           (now v) (now (f v))
+           (later g) (later! (f (g)))
+           _ (raise TypeError)))
 
   (defn apply [self mv]
-    (.map mv (fn [x] ((.unwrap self) x))))
+    (match self
+           (now f) (.map mv f)
+           (later g) (.map mv (fn [x] ((g) x)))
+           _ (raise TypeError)))
 
   (defn bind [self fm]
-    (delay! (.unwrap (fm (.unwrap self))))))
+    (match self
+           (now v) (fm v)
+           (later f) (later! (.unwrap (fm (f))))
+           _ (raise TypeError))))
+
+(defclass now [data-monad-mixin delay]
+  (setv __slots__ #()))
+
+(defclass later [data-monad-mixin delay]
+  (setv __slots__ #()))
 
 (defn delay? [x] (isinstance x delay))
-(defn realized? [x] x.realized)
+(defn now? [x] (isinstance x now))
+(defn later? [x] (isinstance x later))
+
+
+;;; lazy
+
+(defmacro lazy! [#* body]
+  `(lazy (later! ~@body)))
+
+(defclass lazy [box]
+  #[["Composite Monad of Box and Delay, represent a lazy calculated value."
+
+     ::operations
+     [lazy! lazy? realized? realize!]
+
+     ::example
+     (setv v (lazy! (+ 1 2))) ;; (lazy (later (fn [] (+ 1 2))))
+     (realized? v)            ;; False
+     (realize! v)             ;; 3
+     v                        ;; (lazy (now 3))
+     (realized? v)            ;; True
+     ]]
+
+  (setv __slots__ #()))
+
+(defn lazy? [x] (isinstance x lazy))
+
+(defn realized? [x]
+  (match x.data
+         (now _) True
+         (later _) False
+         _ (raise TypeError)))
 
 (defn realize! [x]
-  (->> x.data
-       (do
-         (unless (realized? x)
-           (setv #(x.data x.realized) #((x.data) True))))))
+  (match x.data
+         (now v) v
+         (later f) (let [v (f)]
+                     (->> v (do (reset! x (now v)))))
+         _ (raise TypeError)))
 
 
 ;;; state
@@ -522,7 +547,7 @@
 ;; mt :: (t->r)->r
 ;; f :: (a->((b->r)->r))->((a->r)->r) :: (a->mb)->ma
 ;; f->((a->r)->r) :: f->ma
-(defn callCC [f]
+(defn call-cc [f]
   (cont!
     ;; v :: a
     ;; k :: a->r
@@ -534,28 +559,28 @@
       ;; k :: a->r
       ((f exit) k))))
 
-(defmacro callCC! [exit #* body]
-  `(callCC (fn [~exit] ~@body)))
+(defmacro with-cc [exit #* body]
+  `(call-cc (fn [~exit] ~@body)))
 
 
 
 (export
   :objects [
             ;; monad
-            monad monad? fapply
+            monad monad? fmap fapply
             ;; box
             box box? reset! swap!
             ;; maybe
             maybe just nothing maybe? just? nothing?
             ;; either
-            either right left either? right? left?
-            ;; mtry
-            mtry success failure mtry? success? failure?
+            either success failure either? success? failure?
             ;; delay
-            delay delay? realized? realize!
+            delay now later delay? now? later?
+            ;; lazy
+            lazy lazy? realized? realize!
             ;; state
             state state?
             ;; cont
-            cont cont? callCC
+            cont cont? call-cc
             ]
-  :macros [alet mlet mtry! delay! state! cont! callCC!])
+  :macros [alet mlet ap-swap! try! except! later! lazy! state! cont! with-cc])
