@@ -260,33 +260,6 @@
 (defmacro ap-swap! [x form]
   `(swap! ~x (fn [it] ~form)))
 
-(defn boxed-monad [name m]
-  (type name #(box)
-        {"__slots__" #()
-         "wrap" (classmethod
-                  (fn [cls [v None]]
-                    (cls (m.wrap v))))
-         "zero" (classmethod
-                  (fn [cls]
-                    (cls (m.zero))))
-         "unwrap" (fn [self]
-                    (m.unwrap self.data))
-         "lift" (classmethod
-                  (fn [cls f]
-                    (fn [x] (self.__class__ (f self.data)))))
-         "map" (fn [self f]
-                 (self.__class__ (m.map self.data f)))
-         "apply" (fn [self mv]
-                   (m.apply self.data mv))
-         "bind" (fn [self fm]
-                  (let [cls self.__class__]
-                    (cls
-                      (m.bind self.data
-                              (fn [v]
-                                (match (fm v)
-                                       (cls v) v
-                                       _ (raise (TypeError))))))))}))
-
 
 ;;; maybe
 
@@ -571,7 +544,7 @@
             ;; monad
             monad monad? fmap fapply
             ;; box
-            box box? reset! swap! boxed-monad
+            box box? reset! swap!
             ;; maybe
             maybe just nothing maybe? just? nothing?
             ;; either
