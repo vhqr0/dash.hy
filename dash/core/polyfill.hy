@@ -77,7 +77,8 @@
     (match args
            #(f) (make-transducer
                   :step (rf acc (f it)))
-           #(f #* iterables) (_map f #* iterables))))
+           #(f #* iterables) (_map f #* iterables)
+           _ (raise IndexError))))
 
 (eval-and-compile
   (defn filter [#* args]

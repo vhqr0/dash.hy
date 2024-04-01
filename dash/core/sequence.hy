@@ -55,13 +55,13 @@
 
   (defn __repr__ [self]
     (import dash.strtools :as s)
-    (let [#(l t) (loop [acc (list) x self]
-                       (if (cons? x)
-                           (recur (list-conj! acc (car x)) (cdr x))
-                           #(acc x)))]
+    (let [#(xs x) (loop [acc (list) x self]
+                        (match x
+                               (cons x xs) (recur (list-conj! acc x) xs)
+                               _ #(acc x)))]
       (s.format "({}{})"
-                (s.join-in " " (map repr l))
-                (if (none? t) "" (s.format " . {}" (repr t)))))))
+                (s.join-in " " (map repr xs))
+                (if (none? x) "" (s.format " . {}" (repr x)))))))
 
 (defn cons? [x] (isinstance x cons))
 (defn car   [x] x.car)
@@ -82,12 +82,10 @@
         True (raise TypeError)))
 
 (defn setcar [x v]
-  (->> x
-       (do (setv x.car v))))
+  (->> x (do (setv x.car v))))
 
 (defn setcdr [x v]
-  (->> x
-       (do (setv x.cdr v))))
+  (->> x (do (setv x.cdr v))))
 
 
 ;;; clist
@@ -98,29 +96,47 @@
 (defn clist-in [iterable]
   (clist-reverse (clist-into None iterable)))
 
-(defn clist-into [l iterable]
-  (reduce clist-conj l iterable))
+(defn clist-into [c iterable]
+  (reduce clist-conj c iterable))
 
-(defn clist-conj [l x]
-  (cons x l))
+(defn clist-conj [c x]
+  (cons x c))
 
-(defn clist-iter [l]
-  (loop [l l]
-        (unless (none? l)
-          (match l
-                 (cons x l) (do
-                              (yield x)
-                              (recur l))
-                 _ (raise TypeError)))))
+(defn clist-iter [c]
+  (loop [x c]
+        (match x
+               None None
+               (cons x xs) (do (yield x) (recur xs))
+               _ (raise TypeError))))
 
-(defn clist-reverse [l]
-  (clist-into None (clist-iter l)))
+(defn clist-reverse [xs]
+  (clist-into None (clist-iter xs)))
+
+
+;;; lazy
+
+(setv lazy (boxed-monad "lazy" delay))
+
+(defn lazy? [x] (isinstance x lazy))
+
+(defn realized? [x]
+  (match x.data
+         (now _) True
+         (later _) False
+         _ (raise TypeError)))
+
+(defn realize! [x]
+  (match x.data
+         (now v) v
+         (later f) (let [v (f)]
+                     (->> v (do (reset! x (now v)))))
+         _ (raise TypeError)))
+
+(defmacro lazy! [#* body]
+  `(lazy (later! ~@body)))
 
 
 ;;; seq
-
-(defmacro seq! [#* body]
-  `(seq (lazy! ~@body)))
 
 (defclass seq [lazy :metaclass cast-meta]
   #[["Clojure style lazy sequence."
@@ -148,6 +164,7 @@
           (cond (none? x) None
                 (cons? x) (cons (car x) (cls (cdr x)))
                 (lazy? x) (recur (realize! x))
+                (delay? x) (recur (delay.unwrap x))
                 (iter? x) (recur (try (cons (next x) x) (except [StopIteration])))
                 (iterable? x) (recur (iter x))
                 True (raise TypeError))))
@@ -161,10 +178,10 @@
 
   (defn __iter__ [self]
     (loop [x self]
-          (let [it (realize! x)]
-            (unless (none? it)
-              (yield (car it))
-              (recur (cdr it))))))
+          (match (realize! x)
+                 None None
+                 (cons x xs) (do (yield x) (recur xs))
+                 _ (raise TypeError))))
 
   (defn __bool__ [self]
     (not (none? (realize! self))))
@@ -173,9 +190,11 @@
     (import dash.strtools :as s)
     (let [#(realized unrealized)
           (loop [acc (list) x self]
-                (cond (not (realized? x)) #(acc x)
-                      (none? x.data) #(acc None)
-                      True (recur (list-conj! acc (car x.data)) (cdr x.data))))]
+                (match x
+                       (seq (later _)) #(acc x)
+                       (seq (now None)) #(acc None)
+                       (seq (now (cons x xs))) (recur (list-conj! acc x) xs)
+                       _ (raise TypeError)))]
       (s.format "({}{})"
                 (s.join-in " " (map repr realized))
                 (if (none? unrealized)
@@ -187,6 +206,9 @@
 (defn first [x] (car-safe (realize! (seq x))))
 (defn rest [x] (cdr-safe (realize! (seq x))))
 (defn second [x] (first (rest x)))
+
+(defmacro seq! [#* body]
+  `(seq (later! ~@body)))
 
 
 ;;; transducer
@@ -210,7 +232,6 @@
 (defn transduce [xform f init iterable]
   (reducex (xform f) init iterable))
 
-;; It's obviously that our reducing function doesn't support init.
 (defmacro ap-reducex [form init iterable]
   `(reducex (completing (fn [acc it] ~form)) ~init ~iterable))
 
@@ -238,9 +259,11 @@
             cons cons? car cdr caar cadr cdar cddr car-safe cdr-safe setcar setcdr
             ;; clist
             clist clist-in clist-into clist-conj clist-reverse clist-iter
+            ;; lazy
+            lazy lazy? realized? realize!
             ;; seq
             seq seq? empty? first rest second
             ;; transducer
             reduced reduced? unreduced reducex-step reducex transduce eduction
             ]
-  :macros [seq! ap-reducex ap-transduce])
+  :macros [lazy! seq! ap-reducex ap-transduce])

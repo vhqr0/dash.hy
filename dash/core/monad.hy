@@ -88,9 +88,12 @@
     (raise NotImplementedError))
 
   (defn [classmethod] zero [cls]
-    (cls.wrap))
+    (raise NotImplementedError))
 
   (defn unwrap [self]
+    (raise NotImplementedError))
+
+  (defn [classmethod] lift [cls f]
     (raise NotImplementedError))
 
   (defn map [self f]
@@ -227,6 +230,9 @@
            (box x) x
            _ (raise TypeError)))
 
+  (defn [classmethod] lift [cls f]
+    (fn [x] (box.map x f)))
+
   (defn map [self f]
     (match self
            (box v) (box (f v))
@@ -245,8 +251,7 @@
 (defn box? [x] (isinstance x box))
 
 (defn reset! [x v]
-  (->> v
-       (do (setv x.data v))))
+  (->> v (do (setv x.data v))))
 
 (defn swap! [x f #* args #** kwargs]
   (let [v (f x.data #* args #** kwargs)]
@@ -254,6 +259,33 @@
 
 (defmacro ap-swap! [x form]
   `(swap! ~x (fn [it] ~form)))
+
+(defn boxed-monad [name m]
+  (type name #(box)
+        {"__slots__" #()
+         "wrap" (classmethod
+                  (fn [cls [v None]]
+                    (cls (m.wrap v))))
+         "zero" (classmethod
+                  (fn [cls]
+                    (cls (m.zero))))
+         "unwrap" (fn [self]
+                    (m.unwrap self.data))
+         "lift" (classmethod
+                  (fn [cls f]
+                    (fn [x] (self.__class__ (f self.data)))))
+         "map" (fn [self f]
+                 (self.__class__ (m.map self.data f)))
+         "apply" (fn [self mv]
+                   (m.apply self.data mv))
+         "bind" (fn [self fm]
+                  (let [cls self.__class__]
+                    (cls
+                      (m.bind self.data
+                              (fn [v]
+                                (match (fm v)
+                                       (cls v) v
+                                       _ (raise (TypeError))))))))}))
 
 
 ;;; maybe
@@ -282,6 +314,9 @@
            (just v) v
            (nothing) None
            _ (raise TypeError)))
+
+  (defn [classmethod] lift [cls f]
+    (fn [x] (maybe.map x f)))
 
   (defn map [self f]
     (match self
@@ -314,17 +349,11 @@
 
 ;;; either
 
-(defmacro try! [#* body]
-  `(either.try (fn [] ~@body)))
-
-(defmacro except! [e excs #* body]
-  `(either.except ~e ~excs (fn [e] ~@body)))
-
 (defclass either [monad]
   #[["Either Monad, like maybe but the error branch carries data (errcode/error/exception)."
 
      ::operations
-     [try! success failure either? success? failure? either.try either.except]
+     [try! except! success failure either? success? failure? try- except-]
 
      ::example
      (success 1)                                         ;; (success 1)
@@ -337,12 +366,6 @@
      (.bind (success 0) (fn [v] (try! (/ 4 v))))         ;; (failure ZeroDivisionError)
      (.bind (failure TypeError) (fn [v] (try! (/ 4 v)))) ;; (failure TypeError)
      ]]
-
-  (defn [classmethod] try [cls f]
-    (try
-      (success (f))
-      (except [e Exception]
-        (failure e))))
 
   (defn [classmethod] wrap [cls [v None]]
     (success v))
@@ -358,12 +381,8 @@
                                     True (Exception e)))
            _ (raise TypeError)))
 
-  (defn except [self excs f]
-    (try!
-      (try
-        (.unwrap self)
-        (except [e excs]
-          (f e)))))
+  (defn [classmethod] lift [cls f]
+    (fn [x] (either.map x f)))
 
   (defn map [self f]
     (match self
@@ -393,6 +412,25 @@
 (defn success? [x] (isinstance x success))
 (defn failure? [x] (isinstance x failure))
 
+(defmacro try! [#* body]
+  `(try- (fn [] ~@body)))
+
+(defmacro except! [x excs #* body]
+  `(except- ~x ~excs (fn [e] ~@body)))
+
+(defn try- [f]
+  (try
+    (success (f))
+    (except [e Exception]
+      (failure e))))
+
+(defn except- [x excs f]
+  (try!
+    (try
+      (either.unwrap x)
+      (except [e excs]
+        (f e)))))
+
 
 ;;; delay
 
@@ -404,15 +442,15 @@
      ["The final result can be unwrap, or force a delay to now."]
 
      ::operations
-     [later! now later delay? now? later? delay.force]
+     [later! now later delay? now? later? force]
 
      ::example
      (later! (+ 1 2))                                ;; (later (fn [] (+ 1 2)))
-     (.force (later! (+ 1 2)))                       ;; (now 3)
+     (force (later! (+ 1 2)))                        ;; (now 3)
      (.map (now 1) inc)                              ;; (now 2)
      (.map (later! (+ 1 2)) inc)                     ;; (later (fn [] (inc (+ 1 2))))
      (.bind (now 1) (fn [v] (now (inc v))))          ;; (now 2)
-     (.bind (later! (+ 1 2)) (fn [v] (now (inc v)))) ;; (later (fn [] (.unwrap (now (inc (+ 1 2))))))
+     (.bind (later! (+ 1 2)) (fn [v] (now (inc v)))) ;; (later (fn [] (delay.unwrap (now (inc (+ 1 2))))))
      ]]
 
   (defn [classmethod] wrap [cls [v None]]
@@ -424,8 +462,8 @@
            (later f) (f)
            _ (raise TypeError)))
 
-  (defn force [self]
-    (now (.unwrap self)))
+  (defn [classmethod] lift [cls f]
+    (fn [x] (delay.map x f)))
 
   (defn map [self f]
     (match self
@@ -442,7 +480,7 @@
   (defn bind [self fm]
     (match self
            (now v) (fm v)
-           (later f) (later! (.unwrap (fm (f))))
+           (later f) (later! (delay.unwrap (fm (f))))
            _ (raise TypeError))))
 
 (defclass now [data-monad-mixin delay]
@@ -454,43 +492,7 @@
 (defn delay? [x] (isinstance x delay))
 (defn now? [x] (isinstance x now))
 (defn later? [x] (isinstance x later))
-
-
-;;; lazy
-
-(defmacro lazy! [#* body]
-  `(lazy (later! ~@body)))
-
-(defclass lazy [box]
-  #[["Composite Monad of Box and Delay, represent a lazy calculated value."
-
-     ::operations
-     [lazy! lazy? realized? realize!]
-
-     ::example
-     (setv v (lazy! (+ 1 2))) ;; (lazy (later (fn [] (+ 1 2))))
-     (realized? v)            ;; False
-     (realize! v)             ;; 3
-     v                        ;; (lazy (now 3))
-     (realized? v)            ;; True
-     ]]
-
-  (setv __slots__ #()))
-
-(defn lazy? [x] (isinstance x lazy))
-
-(defn realized? [x]
-  (match x.data
-         (now _) True
-         (later _) False
-         _ (raise TypeError)))
-
-(defn realize! [x]
-  (match x.data
-         (now v) v
-         (later f) (let [v (f)]
-                     (->> v (do (reset! x (now v)))))
-         _ (raise TypeError)))
+(defn force [x] (now (delay.unwrap x)))
 
 
 ;;; state
@@ -569,18 +571,16 @@
             ;; monad
             monad monad? fmap fapply
             ;; box
-            box box? reset! swap!
+            box box? reset! swap! boxed-monad
             ;; maybe
             maybe just nothing maybe? just? nothing?
             ;; either
-            either success failure either? success? failure?
+            either success failure either? success? failure? try- except-
             ;; delay
-            delay now later delay? now? later?
-            ;; lazy
-            lazy lazy? realized? realize!
+            delay now later delay? now? later? force
             ;; state
             state state?
             ;; cont
             cont cont? call-cc
             ]
-  :macros [alet mlet ap-swap! try! except! later! lazy! state! cont! with-cc])
+  :macros [alet mlet ap-swap! try! except! later! state! cont! with-cc])
