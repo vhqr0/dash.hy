@@ -53,31 +53,34 @@
           (.unwrap))))
 
   (defn test-state [self]
-    (.assertEqual self ((mlet [a (state.wrap "hello")
-                               b (state! #((+ a " ") (inc s)))]
-                          (state! #((+ b "world") (inc s))))
+    (.assertEqual self (.data
+                         (mlet [a (state.wrap "hello")
+                                b (state! #((+ a " ") (inc s)))]
+                           (state! #((+ b "world") (inc s))))
                          1)
                   #("hello world" 3)))
 
   (defn test-cont [self]
     (.assertEqual self
-                  (.unwrap
+                  (.data
                     (with-cc exit1
                       (mlet [a (cont.wrap 1)
                              b (cont! (k (inc a)))
                              c (cont! (k (inc b)))]
-                        (cont! (k (+ a b c))))))
+                        (cont! (k (+ a b c)))))
+                    identity)
                   6)
     (.assertEqual self
-                  (.unwrap
+                  (.data
                     (with-cc exit1
                       (mlet [a (cont.wrap 1)
                              b (cont! (k (inc a)))
                              c (exit1 b)]
-                        (cont! (k (+ a b c))))))
+                        (cont! (k (+ a b c)))))
+                    identity)
                   2)
     (.assertEqual self
-                  (.unwrap
+                  (.data
                     (with-cc exit1
                       (mlet [a (cont.wrap 1)
                              b (with-cc exit2
@@ -85,10 +88,11 @@
                                         d (cont! (k (inc c)))]
                                    (cont! (k (+ c d)))))
                              e (cont! (k (inc b)))]
-                        (cont! (k (+ a b e))))))
+                        (cont! (k (+ a b e)))))
+                    identity)
                   8)
     (.assertEqual self
-                  (.unwrap
+                  (.data
                     (with-cc exit1
                       (mlet [a (cont.wrap 1)
                              b (with-cc exit2
@@ -96,10 +100,11 @@
                                         d (cont! (k (inc c)))]
                                    (exit1 (+ c d))))
                              e (cont! (k (inc b)))]
-                        (cont! (k (+ a b e))))))
+                        (cont! (k (+ a b e)))))
+                    identity)
                   3)
     (.assertEqual self
-                  (.unwrap
+                  (.data
                     (with-cc exit1
                       (mlet [a (cont.wrap 1)
                              b (with-cc exit2
@@ -107,8 +112,42 @@
                                         d (exit2 (inc c))]
                                    (cont! (k (+ c d)))))
                              e (cont! (k (inc b)))]
-                        (cont! (k (+ a b e))))))
+                        (cont! (k (+ a b e)))))
+                    identity)
                   6)))
 
+(setv maybeState (maybe-t "maybeState" state))
+(setv stateDelay (state-t "stateDelay" delay))
+
+(defclass TestMonadT [TestCase]
+  (defn test-maybe-t [self]
+    (let [ms (mlet [a (maybeState.wrap 1)
+                    b (maybeState
+                        (state!
+                          (.append s a)
+                          #((just (inc a)) s)))
+                    c (maybeState
+                        (state!
+                          (.append s b)
+                          #((just (inc b)) s)))]
+               (maybeState.wrap (+ a b c)))]
+      (.assertEqual self (ms.data.data (list)) #((just 6) [1 2]))))
+
+  (defn test-state-t [self]
+    (let [sd (mlet [a (stateDelay.wrap 1)
+                    b (stateDelay
+                        (fn [s]
+                          (.append s a)
+                          (later! #((inc a) s))))
+                    c (stateDelay
+                        (fn [s]
+                          (.append s b)
+                          (now #((inc b) s))))]
+               (stateDelay.wrap (+ a b c)))]
+      (let [s (list)
+            m (sd.data s)]
+        (.assertEqual self s [1])
+        (.assertEqual self (force m) (now #(6 [1 2])))))))
+
 (export
-  :objects [TestMonad])
+  :objects [TestMonad TestMonadT])

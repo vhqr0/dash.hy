@@ -35,16 +35,9 @@
      (.apply (box inc) (box 1))          ;; (box 2)
      (.apply (just inc) (just 1))        ;; (just 2)
      (.apply (just inc) (nothing))       ;; (nothing)
-     ((box inc) (box 1))                 ;; (box 2)
-     ((just inc) (just 1))               ;; (just 2)
-     ((just inc) (nothing))              ;; (nothing)
      ((fmap inc) (box 1))                ;; (box 2)
      ((fmap inc) (just 1))               ;; (just 2)
      ((fmap inc) (nothing))              ;; (nothing)
-     ((box (just inc)) (box (just 1)))   ;; (box (just 2))
-     ((box (just inc)) (box (nothing)))  ;; (box (nothing))
-     ((box (fmap inc)) (box (just 1)))   ;; (box (just 2))
-     ((fmap (just inc)) (box (just 1)))  ;; (box (just 2))
      ((fmap (fmap inc)) (box (just 1)))  ;; (box (just 2))
      ((fmap (fmap inc)) (box (nothing))) ;; (box (nothing))
      ((fmap (fmap inc)) (nothing))       ;; (nothing)
@@ -79,11 +72,6 @@
      ...
      ]]
 
-  ;; Applicative functor itself is also a lifted function (ma->mb).
-  ;; Therefore the constructor is a corresponding lifting function ((a->b)->(ma->mb)).
-  (defn __call__ [self mv]
-    (.apply self mv))
-
   (defn [classmethod] wrap [cls [v None]]
     (raise NotImplementedError))
 
@@ -91,9 +79,6 @@
     (raise NotImplementedError))
 
   (defn unwrap [self]
-    (raise NotImplementedError))
-
-  (defn [classmethod] lift [cls f]
     (raise NotImplementedError))
 
   (defn map [self f]
@@ -113,7 +98,7 @@
   (.map mv f))
 
 (defn fapply [f #* mvs]
-  (ap-reduce (acc it) (fmap f) mvs))
+  (ap-reduce (.apply acc it) (box f) mvs))
 
 
 ;;; let macros
@@ -200,10 +185,6 @@
 (defclass [(dataclass :order True :slots True)] data-monad-mixin []
   (setv #^ Any data None))
 
-(defclass fn-monad-mixin [data-monad-mixin]
-  (defn __call__ [self #* args #** kwargs]
-    (self.data #* args #** kwargs)))
-
 
 ;;; box
 
@@ -229,9 +210,6 @@
     (match self
            (box x) x
            _ (raise TypeError)))
-
-  (defn [classmethod] lift [cls f]
-    (fn [x] (box.map x f)))
 
   (defn map [self f]
     (match self
@@ -287,9 +265,6 @@
            (just v) v
            (nothing) None
            _ (raise TypeError)))
-
-  (defn [classmethod] lift [cls f]
-    (fn [x] (maybe.map x f)))
 
   (defn map [self f]
     (match self
@@ -353,9 +328,6 @@
                                     (none? e) (Exception)
                                     True (Exception e)))
            _ (raise TypeError)))
-
-  (defn [classmethod] lift [cls f]
-    (fn [x] (either.map x f)))
 
   (defn map [self f]
     (match self
@@ -435,9 +407,6 @@
            (later f) (f)
            _ (raise TypeError)))
 
-  (defn [classmethod] lift [cls f]
-    (fn [x] (delay.map x f)))
-
   (defn map [self f]
     (match self
            (now v) (now (f v))
@@ -474,14 +443,11 @@
   `(state (fn [s] ~@body)))
 
 ;; s->(v,s)
-(defclass state [fn-monad-mixin monad]
+(defclass state [data-monad-mixin monad]
   (setv __slots__ #())
 
   (defn [classmethod] wrap [cls [v None]]
     (state! #(v s)))
-
-  (defn unwrap [self]
-    (self (dict)))
 
   ;; mt :: s->(t,s)
   ;; self :: s->(a,s) :: ma
@@ -489,8 +455,12 @@
   ;; self->fm->(s->(b,s)) :: self->fm->mb
   (defn bind [self fm]
     (state!
-      (let [#(v ns) (self s)]
-        ((fm v) ns)))))
+      (match self
+             (state f) (let [#(v ns) (f s)]
+                        (match (fm v)
+                               (state f) (f ns)
+                               _ (raise TypeError)))
+             _ (raise TypeError)))))
 
 (defn state? [x] (isinstance x state))
 
@@ -501,21 +471,24 @@
   `(cont (fn [k] ~@body)))
 
 ;; (v->r)->r
-(defclass cont [fn-monad-mixin monad]
+(defclass cont [data-monad-mixin monad]
   (setv __slots__ #())
 
   (defn [classmethod] wrap [cls [v None]]
     (cont! (k v)))
-
-  (defn unwrap [self]
-    (self identity))
 
   ;; mt :: (t->r)->r
   ;; self :: (a->r)->r :: ma
   ;; fm :: a->((b->r)->r) :: a->mb
   ;; self->fm->((b->r)->r) :: self->fm->mb
   (defn bind [self fm]
-    (cont! (self (fn [v] ((fm v) k))))))
+    (cont!
+      (match self
+             (cont f) (f (fn [v]
+                           (match (fm v)
+                                  (cont f) (f k)
+                                  _ (raise TypeError))))
+             _ (raise TypeError)))))
 
 (defn cont? [x] (isinstance x cont))
 
@@ -532,7 +505,9 @@
       ;; exit :: a->mb
       ;; (f exit) :: (a->r)->r :: ma
       ;; k :: a->r
-      ((f exit) k))))
+      (match (f exit)
+             (cont g) (g k)
+             _ (raise TypeError)))))
 
 (defmacro with-cc [exit #* body]
   `(call-cc (fn [~exit] ~@body)))
