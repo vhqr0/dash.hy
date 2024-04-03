@@ -138,7 +138,7 @@
   (defn method?        [x] (isinstance x MethodType))
   (defn callable?      [x] (isinstance x Callable))
   (defn exception?     [x] (isinstance x BaseException))
-  (defn raisible?      [x] (or (exception? x) (issubclass x BaseException)))
+  (defn raisible?      [x] (or (exception? x) (and (type? x) (issubclass x BaseException))))
   (defn iter?          [x] (isinstance x Iterator))
   (defn generator?     [x] (isinstance x Generator))
   (defn iterable?      [x] (isinstance x Iterable))
