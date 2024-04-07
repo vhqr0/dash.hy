@@ -115,10 +115,11 @@
 (eval-and-compile
   (import
     collections.abc [Callable Iterator Generator Iterable Hashable Sized :as Countable Reversible
-                     Sequence Mapping Set MutableSequence MutableMapping MutableSet]
+                     Sequence Mapping Set MutableSequence MutableMapping MutableSet Buffer]
     types [ModuleType FunctionType MethodType])
 
   (defn none?          [x] (is x None))
+  (defn ellipsis?      [x] (is x ...))
   (defn true?          [x] (is x True))
   (defn false?         [x] (is x False))
   (defn bool?          [x] (isinstance x bool))
@@ -149,6 +150,7 @@
   (defn bytes?         [x] (isinstance x bytes))
   (defn bytearray?     [x] (isinstance x bytearray))
   (defn memoryview?    [x] (isinstance x memoryview))
+  (defn buffer?        [x] (isinstance x Buffer))
   (defn slice?         [x] (isinstance x slice))
   (defn int?           [x] (isinstance x int))
   (defn float?         [x] (isinstance x float))
