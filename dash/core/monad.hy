@@ -1,78 +1,269 @@
+(setv __doc__
+      #[["Monad."
+
+         :toc
+         [::wrapper
+          :::wrapper.operations
+          :::wrapper.examples
+
+          ::functor
+          :::functor.operations
+          :::functor.examples
+
+          ::applicative
+          :::applicative.operations
+          :::applicative.examples
+          :::applicative.alet
+
+          ::monad
+          :::monad.operations
+          :::monad.examples
+          :::monad.mlet
+
+          ::box
+          :::box.operations
+          :::box.examples
+          :::box.transformer
+
+          ::either
+          :::either.operations
+          :::either.examples
+
+          ::delay
+          :::delay.operations
+          :::delay.examples
+          ]
+
+         ================================================================================
+
+         ::wrapper
+         "Data wrapper."
+
+         :::wrapper.operations
+         [monad? monad.wrap monad.zero monad.unwrap]
+
+         :::wrapper.examples
+         (either.wrap 1)      ;; (right 1)
+         (either.zero)        ;; (left)
+         (.unwrap (right 1))  ;; 1
+         (.unwrap (left))     ;; (raise Exception)
+
+         ================================================================================
+
+         ::functor
+         "Isomorphic data structure, which can be mapped by function."
+
+         :::functor.operations
+         [fmap monad.map]
+
+         :::functor.examples
+         (.map (box 1) inc)   ;; (box 2)
+         (.map (right 1) inc) ;; (right 2)
+         (.map (left) inc)    ;; (left)
+         (fmap inc (box 1))   ;; (box 2)
+         (fmap inc (right 1)) ;; (right 2)
+         (fmap inc (left))    ;; (left)
+
+         ================================================================================
+
+         ::applicative
+         "Functor that wraps a function."
+
+         :::applicative.operations
+         [alet fapply monad.apply]
+
+         :::applicative.examples
+         (setv add2 (curry 2 +))
+         (.apply (box inc) (box 1))          ;; (box 2)
+         (.apply (right inc) (right 1))      ;; (right 2)
+         (.apply (right inc) (left))         ;; (left)
+         (.apply (left) (right 1))           ;; (left)
+         (fmap inc)                          ;; (curry 2 fmap inc)
+         (fmap (fmap inc))                   ;; (curry 2 fmap (curry 2 fmap inc))
+         ((fmap inc) (box 1))                ;; (box 2)
+         ((fmap inc) (right 1))              ;; (right 2)
+         ((fmap inc) (left))                 ;; (left)
+         ((fmap (fmap inc)) (right (box 1))) ;; (right (box 2))
+         ((fmap (fmap inc)) (left))          ;; (left)
+         (fapply add2 (box 1) (box 2))       ;; (box 3)
+         (fapply add2 (right 1) (right 2))   ;; (right 3)
+         (fapply add2 (right 1) (left))      ;; (left)
+
+         :::applicative.alet
+         ["Applicative functor let."
+          "1. Parallel computing and binding functors `fvs'."
+          "2. Wrap body to a curried applicative functor `af'."
+          "3. Apply functors `fvs' to applicative functor `af'."]
+
+         ::::applicative.alet.examples
+
+         :input
+         (alet [a (right 1)
+                b (right 2)
+                c (right 3)]
+           (+ a b c))
+
+         :output
+         (let [a (right 1)
+               b (right 2)
+               c (right 3)]
+           (-> (fn [a] (fn [b] (fn [c] (+ a b c))))
+               (fapply a b c)))
+
+         ================================================================================
+
+         ::monad
+         "Control flow composition."
+
+         :::monad.operations
+         [mlet monad.bind]
+
+         :::monad.examples
+         (.bind (box 1) (comp box inc))     ;; (box 2)
+         (.bind (right 1) (comp right inc)) ;; (box 2)
+         (.bind (right) (comp right inc))   ;; (left)
+
+         :::monad.mlet
+         ["Monad let."
+          "Nested to create a new monad, and then bind to `fm' as name."]
+
+         ::::monad.mlet.examples
+
+         :input
+         (mlet [a (right 1)
+                b (right (inc a))
+                c (right (inc b))]
+           (right (+ a b c)))
+
+         :output
+         (.bind (right 1)
+                (fn [a]
+                  (.bind (right (inc a))
+                         (fn [b]
+                           (.bind (right (inc b))
+                                  (fn [c]
+                                    (right (+ a b c))))))))
+
+         ================================================================================
+
+         ::box
+         "Box Monad, right boxing a value, also known as ID Monad."
+
+         :::box.operations
+         [box-t box box? reset! swap!]
+
+         :::box.examples
+         (box 1)                        ;; (box 1)
+         (box.wrap 1)                   ;; (box 1)
+         (.map (box 1) inc)             ;; (box 2)
+         (.apply (box inc) (box 1))     ;; (box 2)
+         (.bind (box 1) (comp box inc)) ;; (box 2)
+         (setv b (box 1))               ;; (box 1)
+         (swap! b inc)                  ;; (box 2)
+         (swap! b + 2)                  ;; (box 4)
+         (reset! b 0)                   ;; (box 0)
+
+         :::box.transformer
+         "Boxing an existing monad."
+
+         ::::box.transformer.examples
+
+         :delay
+         (setv delaybox (box-t "delaybox" delay))
+         (delaybox.wrap 1)               ;; (delaybox (now 1))
+         (setv db (delaybox (later! 1))) ;; (delaybox (later (fn [] 1)))
+         (swap! db identity)             ;; (later (fn [] 1))
+         (swap! db force)                ;; (now 1)
+         (swap! db identity)             ;; (now 1)
+
+         :either
+         (setv eitherbox (box-t "eitherbox" either))
+         (eitherbox.wrap 1)                    ;; (eitherbox (right 1))
+         (eitherbox.zero)                      ;; (eitherbox (left))
+         (setv eb (eitherbox.zero))            ;; (eitherbox (left))
+         (swap! eb identity)                   ;; (left)
+         (swap! eb except- Exception identity) ;; (right (Exception))
+         (swap! eb identity)                   ;; (right (Exception))
+
+         ================================================================================
+
+         ::either
+         "Either Monad, represents a result or failure."
+         ["Also known as Try Monad, Error Monad or Except Monad."
+          "When failure is None, also known as Maybe Monad or Optional Monad."]
+
+         :::either.operations
+         [try! except! right left either? right? left? try- except-]
+
+         :::either.examples
+         (defn div4 [n] (try! (/ 4 n)))
+         (right 1)                             ;; (right 1)
+         (left)                                ;; (left)
+         (left 404)                            ;; (left 404)
+         (either.wrap 1)                       ;; (right 1)
+         (either.zero)                         ;; (left)
+         (try! (/ 4 2))                        ;; (right 2)
+         (try! (/ 4 0))                        ;; (left ZeroDivisionError)
+         (div4 2)                              ;; (right 2)
+         (div4 0)                              ;; (left ZeroDivisionError)
+         (except! (div4 2) Exception identity) ;; (right 2)
+         (except! (div4 0) Exception identity) ;; (right (ZeroDivisionError))
+         (.map (right 1) inc)                  ;; (right 2)
+         (.map (left) inc)                     ;; (left)
+         (.map (left 404) inc)                 ;; (left 404)
+         (.apply (right inc) (right 1))        ;; (right 2)
+         (.apply (right inc) (left))           ;; (left)
+         (.apply (right inc) (left 404))       ;; (left 404)
+         (.apply (left) (right 1))             ;; (left)
+         (.apply (left 404) (right 1))         ;; (left 404)
+         (.apply (left 404) (left 401))        ;; (left 404)
+         (.bind (right 1) (comp right inc))    ;; (right 2)
+         (.bind (left) (comp right inc))       ;; (left)
+         (.bind (left 404) (comp right inc))   ;; (left 404)
+         (.bind (right 2) div4)                ;; (right 2)
+         (.bind (right 0) div4)                ;; (left ZeroDivisionError)
+         (.bind (left 404) div4)               ;; (left 404)
+
+         ================================================================================
+
+         ::delay
+         "Delay Monad, represents a result of delay calculation."
+         ["The final result can be unwrap, or force a delay to now."]
+
+         :::delay.operations
+         [later! now later delay? now? later? force]
+
+         :::delay.examples
+         (now 1)                                 ;; 1
+         (later (fn [] (+ 1 2)))                 ;; (later (fn [] (+ 1 2)))
+         (later! (+ 1 2))                        ;; (later (fn [] (+ 1 2)))
+         (delay.wrap 1)                          ;; (now 1)
+         (force (later! (+ 1 2)))                ;; (now 3)
+         (.map (now 1) inc)                      ;; (now 2)
+         (.map (later! (+ 1 2)) inc)             ;; (later (fn [] (inc (+ 1 2))))
+         (.apply (now inc) (now 1))              ;; (now 2)
+         (.apply (later! inc) (now 1))           ;; (later (fn [] (((fn [] inc)) 1)))
+         (.bind (now 1) (comp now inc))          ;; (now 2)
+         (.bind (later! (+ 1 2)) (comp now inc)) ;; (later (fn [] (delay.unwrap (now (inc ((fn [] (+ 1 2))))))))
+
+         ================================================================================
+         ]])
+
+
+;;; monad
+
 (require
   dash.core.polyfill *)
 
 (import
   dash.core.polyfill *
-  dash.metaclasses [singleton-meta]
   dataclasses [dataclass]
   typing [Any])
 
-
-;;; monad
-
 (defclass monad []
-  #[["Monad."
+  (setv __doc__ __doc__)
 
-     ::operations
-     {:wrap        [monad? monad.wrap moand.zero monad.unwrap]
-      :functor     [fmap monad.map]
-      :applicative [alet fapply monad.apply]
-      :monad       [mlet monad.bind]}
-
-     ::wrap
-     (box.wrap 1)        ;; (box 1)
-     (maybe.wrap 1)      ;; (just 1)
-     (maybe.zero)        ;; (nothing)
-     (.unwrap (just 1))  ;; 1
-     (.unwrap (nothing)) ;; None
-
-     ::functor
-     (.map (box 1) inc)   ;; (box 2)
-     (.map (just 1) inc)  ;; (just 2)
-     (.map (nohting) inc) ;; (nothing)
-
-     ::applicative
-     (.apply (box inc) (box 1))          ;; (box 2)
-     (.apply (just inc) (just 1))        ;; (just 2)
-     (.apply (just inc) (nothing))       ;; (nothing)
-     ((fmap inc) (box 1))                ;; (box 2)
-     ((fmap inc) (just 1))               ;; (just 2)
-     ((fmap inc) (nothing))              ;; (nothing)
-     ((fmap (fmap inc)) (box (just 1)))  ;; (box (just 2))
-     ((fmap (fmap inc)) (box (nothing))) ;; (box (nothing))
-     ((fmap (fmap inc)) (nothing))       ;; (nothing)
-     :::applicative.complex
-     ...
-     (-> (just (curry 2 +))
-         (.apply (just 1))
-         (.apply (just 2)))
-     ...
-     (fapply (curry 2 +) (just 1) (just 2))
-     ...
-     (alet [a (just 1)
-            b (just 2)]
-       (+ a b))
-     ...
-
-     ::monad
-     (.bind (box 1) (fn [v] (box (inc v))))   ;; (box 2)
-     (.bind (just 1) (fn [v] (just (inc v)))) ;; (box 2)
-     (.bind (noting) (fn [v] (just (inc v)))) ;; (nothing)
-     :::monad.complex
-     ...
-     (.bind (just 1)
-            (fn [a]
-              (.bind (just (inc a))
-                     (fn [b]
-                       (just (+ a b))))))
-     ...
-     (mlet [a (just 1)
-            b (just (inc a))]
-       (just (+ a b)))
-     ...
-     ]]
-
-  (defn [classmethod] wrap [cls [v None]]
+  (defn [classmethod] wrap [cls v]
     (raise NotImplementedError))
 
   (defn [classmethod] zero [cls]
@@ -92,41 +283,14 @@
 
 (defn monad? [x] (isinstance x monad))
 
-;; fmap is a lifting function whose type cannot be determined until
-;; the mv is received.
 (defn [(curry 2)] fmap [f mv]
   (.map mv f))
 
 (defn fapply [f #* mvs]
   (ap-reduce (.apply acc it) (box f) mvs))
 
-
-;;; let macros
-
 (defmacro alet [bindings #* body]
-  #[["Applicative functor let."
-     ["1. Parallel computing and binding functors `fvs'."
-      "2. Wrap body to a curried applicative functor `af'."
-      "3. Apply functors `fvs' to applicative functor `af'."]
-
-     ::example
-
-     :::example.input
-     (alet [a (just 1)
-            b (just 2)
-            c (just 3)]
-       (+ a b c))
-
-     :::example.output
-     (let [a (just 1)
-           b (just 2)
-           c (just 3)]
-       (-> (fn [a] (fn [b] (fn [c] (+ a b c))))
-           (fapply a b c)))
-     ]]
-
   (import itertools [batched])
-
   (let [ls (->> (batched bindings 2) (ap-map (let [#(l r) it] l)) list)]
     (assert (all (map symbol? ls)))
     `(let ~bindings
@@ -134,27 +298,6 @@
            (fapply ~@ls)))))
 
 (defmacro mlet [bindings #* body]
-  #[["Monad let."
-     ["Nested to create a new monad, and then bind to `fm' as name."]
-
-     ::example
-
-     :::example.input
-     (mlet [a (just 1)
-            b (just (inc a))
-            c (just (inc b))]
-       (just (+ a b c)))
-
-     :::example.output
-     (.bind (just 1)
-            (fn [a]
-              (.bind (just (inc a))
-                     (fn [b]
-                       (.bind (just (inc b))
-                              (fn [c]
-                                (just (+ a b c))))))))
-     ]]
-
   (let [$ (hy.gensym)]
     (match bindings
            #() `(do ~@body)
@@ -173,58 +316,47 @@
                                         (raise TypeError))))
            _ (raise IndexError))))
 
-
-;;; mixins
-
-(defclass zero-monad-mixin []
-  (defn __bool__ [self]
-    False))
-
-(defclass [(dataclass :slots True)] empty-monad-mixin [:metaclass singleton-meta])
-
 (defclass [(dataclass :order True :slots True)] data-monad-mixin []
   (setv #^ Any data None))
+
+(defclass monad-id [monad]
+  (defn [classmethod] wrap [cls v]
+    v)
+
+  (defn unwrap [self]
+    self)
+
+  (defn map [self f]
+    (f self))
+
+  (defn apply [self mv]
+    (self mv))
+
+  (defn bind [self fm]
+    (fm self)))
 
 
 ;;; box
 
-(defclass box [data-monad-mixin monad]
-  #[["Box Monad, just boxing a vlaue, also known as ID Monad."
+(defn box-t [name m]
+  (type name #(data-monad-mixin)
+        {"__slots__" #()
+         "wrap" (classmethod
+                  (fn [cls v]
+                    (cls (m.wrap v))))
+         "zero" (classmethod
+                  (fn [cls]
+                    (cls (m.zero))))
+         "unwrap" (fn [self]
+                    (m.unwrap self.data))
+         "map" (fn [self f]
+                 (self.__class__ (m.map self.data f)))
+         "apply" (fn [self mv]
+                   (mv.__class__ (m.apply self.data mv.data)))
+         "bind" (fn [self fm]
+                  (self.__class__ (m.bind self.data (fn [v] (. (fm v) data)))))}))
 
-     ::operations
-     [box? reset! swap!]
-
-     ::example
-     (setv b (box 1)) ;; (box 1)
-     (swap! b inc)    ;; (box 2)
-     (swap! b + 2)    ;; (box 4)
-     (reset! b 0)     ;; (box 0)
-     ]]
-
-  (setv __slots__ #())
-
-  (defn [classmethod] wrap [cls [v None]]
-    (box v))
-
-  (defn unwrap [self]
-    (match self
-           (box x) x
-           _ (raise TypeError)))
-
-  (defn map [self f]
-    (match self
-           (box v) (box (f v))
-           _ (raise TypeError)))
-
-  (defn apply [self mv]
-    (match self
-           (box f) (.map mv f)
-           _ (raise TypeError)))
-
-  (defn bind [self fm]
-    (match self
-           (box v) (fm v)
-           _ (raise TypeError))))
+(setv box (box-t "box" monad-id))
 
 (defn box? [x] (isinstance x box))
 
@@ -239,142 +371,68 @@
   `(swap! ~x (fn [it] ~form)))
 
 
-;;; maybe
-
-(defclass maybe [monad]
-  #[["Maybe Monad, represent a result maybe nothing (nil/null/none)."
-
-     ::operations
-     [just nothing maybe? just? nothing?]
-
-     ::example
-     (just 1)                                  ;; (just 1)
-     (nothing)                                 ;; (nothing)
-     (.bind (just 1) (fn [v] (just (inc v))))  ;; (just 2)
-     (.bind (nothing) (fn [v] (just (inc v)))) ;; (nothing)
-     ]]
-
-  (defn [classmethod] wrap [cls [v None]]
-    (just v))
-
-  (defn [classmethod] zero [cls]
-    (nothing))
-
-  (defn unwrap [self]
-    (match self
-           (just v) v
-           (nothing) None
-           _ (raise TypeError)))
-
-  (defn map [self f]
-    (match self
-           (just v) (just (f v))
-           (nothing) self
-           _ (raise TypeError)))
-
-  (defn apply [self mv]
-    (match self
-           (just f) (.map mv f)
-           (nohting) self
-           _ (raise TypeError)))
-
-  (defn bind [self fm]
-    (match self
-           (just v) (fm v)
-           (nothing) self
-           _ (raise TypeError))))
-
-(defclass just [data-monad-mixin maybe]
-  (setv __slots__ #()))
-
-(defclass nothing [zero-monad-mixin empty-monad-mixin maybe]
-  (setv __slots__ #()))
-
-(defn maybe? [x] (isinstance x maybe))
-(defn just? [x] (isinstance x just))
-(defn nothing? [x] (isinstance x nothing))
-
-
 ;;; either
 
 (defclass either [monad]
-  #[["Either Monad, like maybe but the error branch carries data (errcode/error/exception)."
-
-     ::operations
-     [try! except! success failure either? success? failure? try- except-]
-
-     ::example
-     (success 1)                                         ;; (success 1)
-     (failure "404")                                     ;; (failure "404")
-     (try! 1)                                            ;; (success 1)
-     (try! (/ 1 0))                                      ;; (failure ZeroDivisionError)
-     (.bind (success 1) (fn [v] (success (inc v))))      ;; (success 2)
-     (.bind (failure "404") (fn [v] (success [inc v])))  ;; (failure "404")
-     (.bind (success 2) (fn [v] (try! (/ 4 v))))         ;; (success 2)
-     (.bind (success 0) (fn [v] (try! (/ 4 v))))         ;; (failure ZeroDivisionError)
-     (.bind (failure TypeError) (fn [v] (try! (/ 4 v)))) ;; (failure TypeError)
-     ]]
-
-  (defn [classmethod] wrap [cls [v None]]
-    (success v))
+  (defn [classmethod] wrap [cls v]
+    (right v))
 
   (defn [classmethod] zero [cls]
-    (failure))
+    (left))
 
   (defn unwrap [self]
     (match self
-           (success v) v
-           (failure e) (raise (cond (raisible? e) e
-                                    (none? e) (Exception)
-                                    True (Exception e)))
+           (right v) v
+           (left e) (raise (raisible e))
            _ (raise TypeError)))
 
   (defn map [self f]
     (match self
-           (success v) (success (f v))
-           (failure _) self
+           (right v) (right (f v))
+           (left _) self
            _ (raise TypeError)))
 
   (defn apply [self mv]
     (match self
-           (success f) (.map mv f)
-           (failure _) self
+           (right f) (either.map mv f)
+           (left _) self
            _ (raise TypeError)))
 
   (defn bind [self fm]
     (match self
-           (success v) (fm v)
-           (failure _) self
+           (right v) (fm v)
+           (left _) self
            _ (raise TypeError))))
 
-(defclass success [data-monad-mixin either]
+(defclass right [data-monad-mixin either]
   (setv __slots__ #()))
 
-(defclass failure [zero-monad-mixin data-monad-mixin either]
+(defclass left [data-monad-mixin either]
   (setv __slots__ #()))
 
 (defn either? [x] (isinstance x either))
-(defn success? [x] (isinstance x success))
-(defn failure? [x] (isinstance x failure))
+(defn right? [x] (isinstance x right))
+(defn left? [x] (isinstance x left))
+
+(defn try- [f]
+  (try
+    (right (f))
+    (except [e Exception]
+      (left e))))
+
+(defn except- [x excs f]
+  (try-
+    (fn []
+      (try
+        (either.unwrap x)
+        (except [e excs]
+          (f e))))))
 
 (defmacro try! [#* body]
   `(try- (fn [] ~@body)))
 
 (defmacro except! [x excs #* body]
   `(except- ~x ~excs (fn [e] ~@body)))
-
-(defn try- [f]
-  (try
-    (success (f))
-    (except [e Exception]
-      (failure e))))
-
-(defn except- [x excs f]
-  (try!
-    (try
-      (either.unwrap x)
-      (except [e excs]
-        (f e)))))
 
 
 ;;; delay
@@ -383,22 +441,7 @@
   `(later (fn [] ~@body)))
 
 (defclass delay [monad]
-  #[["delay Monad, represent the result of a delay calculation."
-     ["The final result can be unwrap, or force a delay to now."]
-
-     ::operations
-     [later! now later delay? now? later? force]
-
-     ::example
-     (later! (+ 1 2))                                ;; (later (fn [] (+ 1 2)))
-     (force (later! (+ 1 2)))                        ;; (now 3)
-     (.map (now 1) inc)                              ;; (now 2)
-     (.map (later! (+ 1 2)) inc)                     ;; (later (fn [] (inc (+ 1 2))))
-     (.bind (now 1) (fn [v] (now (inc v))))          ;; (now 2)
-     (.bind (later! (+ 1 2)) (fn [v] (now (inc v)))) ;; (later (fn [] (delay.unwrap (now (inc (+ 1 2))))))
-     ]]
-
-  (defn [classmethod] wrap [cls [v None]]
+  (defn [classmethod] wrap [cls v]
     (now v))
 
   (defn unwrap [self]
@@ -414,10 +457,11 @@
            _ (raise TypeError)))
 
   (defn apply [self mv]
-    (match self
-           (now f) (.map mv f)
-           (later g) (.map mv (fn [x] ((g) x)))
-           _ (raise TypeError)))
+    (delay.map mv
+               (match self
+                      (now f) f
+                      (later g) (fn [x] ((g) x))
+                      _ (raise TypeError))))
 
   (defn bind [self fm]
     (match self
@@ -437,98 +481,16 @@
 (defn force [x] (now (delay.unwrap x)))
 
 
-;;; state
-
-(defmacro state! [#* body]
-  `(state (fn [s] ~@body)))
-
-;; s->(v,s)
-(defclass state [data-monad-mixin monad]
-  (setv __slots__ #())
-
-  (defn [classmethod] wrap [cls [v None]]
-    (state! #(v s)))
-
-  ;; mt :: s->(t,s)
-  ;; self :: s->(a,s) :: ma
-  ;; fm :: a->(s->(b,s)) :: a->mb
-  ;; self->fm->(s->(b,s)) :: self->fm->mb
-  (defn bind [self fm]
-    (state!
-      (match self
-             (state f) (let [#(v ns) (f s)]
-                        (match (fm v)
-                               (state f) (f ns)
-                               _ (raise TypeError)))
-             _ (raise TypeError)))))
-
-(defn state? [x] (isinstance x state))
-
-
-;;; cont
-
-(defmacro cont! [#* body]
-  `(cont (fn [k] ~@body)))
-
-;; (v->r)->r
-(defclass cont [data-monad-mixin monad]
-  (setv __slots__ #())
-
-  (defn [classmethod] wrap [cls [v None]]
-    (cont! (k v)))
-
-  ;; mt :: (t->r)->r
-  ;; self :: (a->r)->r :: ma
-  ;; fm :: a->((b->r)->r) :: a->mb
-  ;; self->fm->((b->r)->r) :: self->fm->mb
-  (defn bind [self fm]
-    (cont!
-      (match self
-             (cont f) (f (fn [v]
-                           (match (fm v)
-                                  (cont f) (f k)
-                                  _ (raise TypeError))))
-             _ (raise TypeError)))))
-
-(defn cont? [x] (isinstance x cont))
-
-;; mt :: (t->r)->r
-;; f :: (a->((b->r)->r))->((a->r)->r) :: (a->mb)->ma
-;; f->((a->r)->r) :: f->ma
-(defn call-cc [f]
-  (cont!
-    ;; v :: a
-    ;; k :: a->r
-    ;; exit :: a->((b->r)->r) :: a->mb
-    (let [exit (fn [v] (cont (fn [_] (k v))))]
-      ;; f :: (a->mb)->ma
-      ;; exit :: a->mb
-      ;; (f exit) :: (a->r)->r :: ma
-      ;; k :: a->r
-      (match (f exit)
-             (cont g) (g k)
-             _ (raise TypeError)))))
-
-(defmacro with-cc [exit #* body]
-  `(call-cc (fn [~exit] ~@body)))
-
-
 
 (export
   :objects [
             ;; monad
             monad monad? fmap fapply
             ;; box
-            box box? reset! swap!
-            ;; maybe
-            maybe just nothing maybe? just? nothing?
+            box-t box box? reset! swap!
             ;; either
-            either success failure either? success? failure? try- except-
+            either right left either? right? left? try- except-
             ;; delay
             delay now later delay? now? later? force
-            ;; state
-            state state?
-            ;; cont
-            cont cont? call-cc
             ]
-  :macros [alet mlet ap-swap! try! except! later! state! cont! with-cc])
+  :macros [alet mlet ap-swap! try! except! later!])

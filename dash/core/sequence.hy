@@ -5,7 +5,6 @@
 (import
   dash.core.polyfill *
   dash.core.monad *
-  dash.core.monadt *
   dash.metaclasses [cast-meta]
   dataclasses [dataclass]
   typing [Any])

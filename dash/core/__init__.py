@@ -8,7 +8,6 @@ hy.macros.require("dash.core.colltools", None, assignments="ALL", prefix="")
 
 from dash.core.polyfill import *
 from dash.core.monad import *
-from dash.core.monadt import *
 from dash.core.sequence import *
 from dash.core.seqtools import *
 from dash.core.colltools import *

@@ -128,6 +128,7 @@
     collections.abc [Callable Iterator Generator Iterable Hashable Sized :as Countable Reversible
                      Sequence Mapping Set MutableSequence MutableMapping MutableSet]
     types [ModuleType FunctionType MethodType])
+
   (defn none?          [x] (is x None))
   (defn true?          [x] (is x True))
   (defn false?         [x] (is x False))
@@ -163,7 +164,13 @@
   (defn int?           [x] (isinstance x int))
   (defn float?         [x] (isinstance x float))
   (defn complex?       [x] (isinstance x complex))
-  (defn number?        [x] (isinstance x #(int float complex))))
+  (defn number?        [x] (isinstance x #(int float complex)))
+
+  (defn raisible [e]
+    (cond
+      (none? e) Exception
+      (raisible? e) e
+      True (Exception e))))
 
 
 ;;; inttools
