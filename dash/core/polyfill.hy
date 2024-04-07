@@ -99,6 +99,12 @@
          #(form init iterable) `(reduce (fn [acc it] ~form) ~init ~iterable)
          _ (raise IndexError)))
 
+(defmacro ap-reductions [#* args]
+  (match args
+         #(form iterable) `(reductions (fn [acc it] ~form) ~iterable)
+         #(form init iterable) `(reductions (fn [acc it] ~form) ~init ~iterable)
+         _ (raise IndexError)))
+
 (defmacro ap-map [#* args]
   (match args
          #(form) `(map (fn [it] ~form))
@@ -296,7 +302,7 @@
 (defmacro doto [x #* forms]
   (let [$ (hy.gensym)]
     `(let [~$ ~x]
-       ~@(ap-map `(-> $ ~it) forms)
+       ~@(ap-map `(-> ~$ ~it) forms)
        ~$)))
 
 
