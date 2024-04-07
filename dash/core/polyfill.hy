@@ -30,19 +30,8 @@
   `(let [it ~test]
      (unless it ~@body)))
 
-;; doiter dotimes
-
-(defmacro ap-doiter [iterable form]
-  `(for [it ~iterable] ~form))
-
-(defmacro ap-dotimes [n form]
-  `(ap-doiter (range ~n) ~form))
-
-(eval-and-compile
-  (defn doiter [iterable f]
-    (ap-doiter iterable (f it)))
-  (defn dotimes [n f]
-    (ap-dotimes n (f it))))
+(defmacro ap-for [iterable #* body]
+  `(for [it ~iterable] ~@body))
 
 ;; reduce map filter remove
 

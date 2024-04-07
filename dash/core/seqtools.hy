@@ -439,10 +439,10 @@
          _ (raise IndexError)))
 
 (defn flatten [iterable]
-  (ap-doiter iterable
-             (if (coll? it)
-                 (yield-from (flatten it))
-                 (yield it))))
+  (ap-for iterable
+          (if (coll? it)
+              (yield-from (flatten it))
+              (yield it))))
 
 
 

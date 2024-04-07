@@ -87,7 +87,7 @@
       (len c)
       (let [acc 0]
         (->> acc
-             (do (ap-doiter c (+= acc 1)))))))
+             (do (ap-for c (+= acc 1)))))))
 
 (defn -reversed [c]
   (if (reversible? c)

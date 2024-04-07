@@ -10,9 +10,13 @@
 (defn parse-args [spec [args None] #** parser-args]
   (import argparse)
   (let [parser (argparse.ArgumentParser #** parser-args)]
-    (--doiter spec
-            (let [#(args kwargs) (-split-with (-notfn keyword?) it)
-                  kwargs (dict (--map (let [#(k v) it] #(k.name v)) (-partition-all 2 kwargs)))]
+    (ap-for spec
+            (let [#(args kwargs) (split-with (complement keyword?) it)
+                  kwargs (->> (partition-all 2 kwargs)
+                              (ap-map
+                                (let [#(k v) it]
+                                  #(k.name v)))
+                              dict)]
               (.add-argument parser #* args #** kwargs)))
     (.parse-args parser args)))
 
@@ -56,17 +60,17 @@
   (cond (sexp? form) (let [#(car #* forms) form]
                        (if (and (symbol? car) (s.ends-with? car "/a!"))
                            (a!replace a? ((get a!macros car (if a? 0 1)) #* forms))
-                           (sexp (-map (-partial a!replace a?) form))))
-        (hytuple? form) (hytuple (-map (-partial a!replace a?) form))
-        (hylist?  form) (hylist  (-map (-partial a!replace a?) form))
-        (hydict?  form) (hydict  (-map (-partial a!replace a?) form))
-        (hyset?   form) (hyset   (-map (-partial a!replace a?) form))
+                           (sexp (map (partial a!replace a?) form))))
+        (hytuple? form) (hytuple (map (partial a!replace a?) form))
+        (hylist?  form) (hylist  (map (partial a!replace a?) form))
+        (hydict?  form) (hydict  (map (partial a!replace a?) form))
+        (hyset?   form) (hyset   (map (partial a!replace a?) form))
         True form))
 
 (defmacro do/a! [#* body]
   `(do
-     ~@(-map (-partial a!replace True) body)
-     ~@(-map (-partial a!replace False) body)))
+     ~@(map (partial a!replace True) body)
+     ~@(map (partial a!replace False) body)))
 
 
 
