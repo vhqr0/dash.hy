@@ -50,6 +50,7 @@
 (eval-and-compile
   (import
     functools [reduce :as _reduce]
+    itertools [accumulate :as _reductions]
     builtins [map :as _map]
     builtins [filter :as _filter]
     itertools [filterfalse :as _remove]))
@@ -59,6 +60,13 @@
     (match args
            #(f iterable) (_reduce f iterable)
            #(f init iterable) (_reduce f iterable init)
+           _ (raise IndexError))))
+
+(eval-and-compile
+  (defn reductions [#* args]
+    (match args
+           #(f iterable) (_reductions iterable f)
+           #(f init iterable) (_reductions iterable f :initial init)
            _ (raise IndexError))))
 
 (eval-and-compile
