@@ -8,8 +8,8 @@
 
 
 (defn parse-args [spec [args None] #** parser-args]
-  (import argparse)
-  (let [parser (argparse.ArgumentParser #** parser-args)]
+  (import argparse [ArgumentParser])
+  (let [parser (ArgumentParser #** parser-args)]
     (ap-for spec
             (let [#(args kwargs) (split-with (complement keyword?) it)
                   kwargs (->> (partition-all 2 kwargs)
