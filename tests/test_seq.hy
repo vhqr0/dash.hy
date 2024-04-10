@@ -32,8 +32,8 @@
     (.assertEqual self (repr (cons 1 (cons 2 3))) "(1 2 . 3)")
     (.assertEqual self (repr (clist 1 2 3)) "(1 2 3)")
     (.assertEqual self (repr (seq (clist 1 2 3))) "(1 2 3)")
-    (.assertTrue self (s.starts-with? (repr (seq (range 3))) "( . seq(data=later"))
-    (.assertTrue self (s.starts-with? (repr (seq (cons 1 (range 3)))) "(1 . seq(data="))))
+    (.assertTrue self (s.startswith? (repr (seq (range 3))) "( . seq(data=later"))
+    (.assertTrue self (s.startswith? (repr (seq (cons 1 (range 3)))) "(1 . seq(data="))))
 
 (export
   :objects [TestSeq])

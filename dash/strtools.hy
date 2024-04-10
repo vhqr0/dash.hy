@@ -1,99 +1,104 @@
 ;; s: str
 ;; b: bytes
-;; o: str or bytes
+;; x: str or bytes
 
 (defn encode [s [encoding "utf-8"] [errors "strict"]] (.encode s encoding errors))
 (defn decode [b [encoding "utf-8"] [errors "strict"]] (.decode b encoding errors))
 
-(defn format [f #* args #** kwargs] (.format f #* args #** kwargs))
-(defn format-map [f mapping] (.format-map f mapping))
+(defn format [x #* args #** kwargs] (.format f #* args #** kwargs))
+(defn format-map [x mapping] (.format-map f mapping))
 
-(defn join-in [sep os] (.join sep os))
-(defn join [sep #* os] (join-in sep os))
+(defn empty? [x] (zero? (len x)))
 
+
+
+(defn join-in [sep xs] (.join sep xs))
 (defn concats-in [ss] (join-in "" ss))
-(defn concats [#* ss] (concats-in ss))
 (defn concatb-in [bs] (join-in b"" bs))
+
+(defn join [sep #* xs] (join-in sep xs))
+(defn concats [#* ss] (concats-in ss))
 (defn concatb [#* bs] (concatb-in bs))
 
-(defn split-lines [o [keepends False]] (.splitlines o :keepends keepends))
+(defn splitlines [x [keepends False]] (.splitlines x :keepends keepends))
 
-(defn split  [o [sep None] [maxsplit -1]] (.split  o sep maxsplit))
-(defn rsplit [o [sep None] [maxsplit -1]] (.rsplit o sep maxsplit))
+(defn split  [x [sep None] [maxsplit -1]] (.split  x sep maxsplit))
+(defn rsplit [x [sep None] [maxsplit -1]] (.rsplit x sep maxsplit))
 
-(defn partition  [o sep] (.partition  o sep))
-(defn rpartition [o sep] (.rpartition o sep))
+(defn partition  [x sep] (.partition  x sep))
+(defn rpartition [x sep] (.rpartition x sep))
 
 
 
-(defn subs [o start [end None]] (cut o start end))
-
-(defn includes? [o sub] (in sub o))
-
-;; args: [count]
-(defn replace [o old new #* args] (.replace o old new #* args))
+(defn includes? [x sub] (in sub x))
 
 ;; args: [start [end]]
-(defn count  [o sub #* args] (.count  o sub #* args))
-(defn index  [o sub #* args] (.index  o sub #* args))
-(defn rindex [o sub #* args] (.rindex o sub #* args))
-(defn find   [o sub #* args] (.find   o sub #* args))
-(defn rfind  [o sub #* args] (.rfind  o sub #* args))
-
-
-
-(defn strip  [o [chars None]] (.strip  o chars))
-(defn lstrip [o [chars None]] (.lstrip o chars))
-(defn rstrip [o [chars None]] (.rstrip o chars))
-
-(defn remove-prefix [o prefix] (.removeprefix o prefix))
-(defn remove-suffix [o suffix] (.removesuffix o suffix))
+(defn startswith? [x prefix #* args] (.startswith x prefix #* args))
+(defn endswith?   [x suffix #* args] (.endswith   x suffix #* args))
 
 ;; args: [start [end]]
-(defn starts-with? [o prefix #* args] (.startswith o prefix #* args))
-(defn ends-with?   [o suffix #* args] (.endswith   o suffix #* args))
+(defn count  [x sub #* args] (.count  x sub #* args))
+(defn index  [x sub #* args] (.index  x sub #* args))
+(defn rindex [x sub #* args] (.rindex x sub #* args))
+(defn find   [x sub #* args] (.find   x sub #* args))
+(defn rfind  [x sub #* args] (.rfind  x sub #* args))
+
+(defn replace [x old new [count -1]] (.replace x old new count))
+
+(defn strip  [x [chars None]] (.strip  x chars))
+(defn lstrip [x [chars None]] (.lstrip x chars))
+(defn rstrip [x [chars None]] (.rstrip x chars))
+
+(defn removeprefix [x prefix [strict False]]
+  (when (and strict (not (startswith? prefix)))
+    (raise ValueError))
+  (.removeprefix x prefix))
+
+(defn removesuffix [x suffix [strict False]]
+  (when (and strict (not (endswith? suffix)))
+    (raise ValueError))
+  (.removesuffix x suffix))
 
 
 
-(defn blank?     [o] (not o))
-(defn ascii?     [o] (.isascii o))
-(defn space?     [o] (.isspace o))
-(defn alpha?     [o] (.isalpha o))
-(defn lower?     [o] (.islower o))
-(defn upper?     [o] (.isupper o))
-(defn title?     [o] (.istitle o))
-(defn digit?     [o] (.isdigit o))
-(defn decimal?   [o] (.isdecimal o))
-(defn numeric?   [o] (.isnumeric o))
-(defn alnum?     [o] (.isalnum o))
-(defn printable? [o] (.isprintable o))
+(defn ascii?     [x] (.isascii x))
+(defn space?     [x] (.isspace x))
+(defn alpha?     [x] (.isalpha x))
+(defn lower?     [x] (.islower x))
+(defn upper?     [x] (.isupper x))
+(defn title?     [x] (.istitle x))
+(defn digit?     [x] (.isdigit x))
+(defn decimal?   [x] (.isdecimal x))
+(defn numeric?   [x] (.isnumeric x))
+(defn alnum?     [x] (.isalnum x))
+(defn printable? [x] (.isprintable x))
 
-(defn capitalize [o] (.capitalize o))
-(defn lower-case [o] (.lower o))
-(defn upper-case [o] (.upper o))
-(defn title-case [o] (.title o))
-(defn swap-case  [o] (.swapcase o))
-(defn case-fold  [o] (.casefold o))
-
-
+(defn capitalize [x] (.capitalize x))
+(defn lower      [x] (.lower x))
+(defn upper      [x] (.upper x))
+(defn title      [x] (.title x))
+(defn swapcase   [x] (.swapcase x))
+(defn casefold   [x] (.casefold x))
 
 ;; str: [fillchar " "]
 ;; bytes: [fillchar b" "]
-(defn center [o width #* args] (.center o width #* args))
-(defn ljust  [o width #* args] (.ljust  o width #* args))
-(defn rjust  [o width #* args] (.rjust  o width #* args))
+(defn center [x width #* args] (.center x width #* args))
+(defn ljust  [x width #* args] (.ljust  x width #* args))
+(defn rjust  [x width #* args] (.rjust  x width #* args))
 
-(defn zfill  [o width] (.zfill o width))
+(defn zfill  [x width] (.zfill x width))
 
-(defn expandtabs [o [tabsize 8]] (.expandtabs o tabsize))
+(defn expandtabs [x [tabsize 8]] (.expandtabs x tabsize))
+
+
 
 (export
-  :objects [encode decode format format-map
-            join-in join concats-in concats concatb-in concatb
-            split rsplit split-lines partition rpartition
-            subs includes? replace count index rindex find rfind
-            strip lstrip rstrip remove-prefix remove-suffix starts-with? ends-with?
-            blank? ascii? space? alpha? lower? upper? title?
+  :objects [encode decode format format-map empty?
+            join-in concats-in concatb-in join concats concatb
+            splitlines split rsplit partition rpartition
+            includes? startswith? endswith? count index rindex find rfind
+            replace strip lstrip rstrip removeprefix removesuffix
+            ascii? space? alpha? lower? upper? title?
             digit? decimal? numeric? alnum? printable?
-            capitalize lower-case upper-case title-case swap-case case-fold
+            capitalize lower upper title swapcase casefold
             center ljust rjust zfill expandtabs])
