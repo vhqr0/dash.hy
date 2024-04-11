@@ -128,7 +128,9 @@
 
 (eval-and-compile
   (import
-    collections.abc [Callable Iterator Generator Iterable Hashable Sized :as Countable Reversible
+    collections.abc [Callable Awaitable Coroutine
+                     Iterator Generator Iterable AsyncIterator AsyncGenerator AsyncIterable
+                     Hashable Sized :as Countable Reversible
                      Sequence Mapping Set MutableSequence MutableMapping MutableSet Buffer]
     types [ModuleType FunctionType MethodType])
 
@@ -142,11 +144,16 @@
   (defn fn?            [x] (isinstance x FunctionType))
   (defn method?        [x] (isinstance x MethodType))
   (defn callable?      [x] (isinstance x Callable))
-  (defn exception?     [x] (isinstance x BaseException))
-  (defn raisible?      [x] (or (exception? x) (and (type? x) (issubclass x BaseException))))
+  (defn awaitable?     [x] (isinstance x Awaitable))
+  (defn coro?          [x] (isinstance x Coroutine))
+  (defn exc?           [x] (isinstance x BaseException))
+  (defn raisible?      [x] (or (exc? x) (and (type? x) (issubclass x BaseException))))
   (defn iter?          [x] (isinstance x Iterator))
   (defn generator?     [x] (isinstance x Generator))
   (defn iterable?      [x] (isinstance x Iterable))
+  (defn aiter?         [x] (isinstance x AsyncIterator))
+  (defn agenerator?    [x] (isinstance x AsyncGenerator))
+  (defn aiterable?     [x] (isinstance x AsyncIterable))
   (defn hashable?      [x] (isinstance x Hashable))
   (defn countable?     [x] (isinstance x Countable))
   (defn reversible?    [x] (isinstance x Reversible))
@@ -210,17 +217,19 @@
         hyset   hy.models.Set
         hystr   hy.models.String
         hybytes hy.models.Bytes)
+
   (defn model?   [x] (isinstance x model))
   (defn keyword? [x] (isinstance x keyword))
   (defn symbol?  [x] (isinstance x symbol))
   (defn sexp?    [x] (isinstance x sexp))
   (defn hytuple? [x] (isinstance x hytuple))
   (defn hylist?  [x] (isinstance x hylist))
-  (defn hyseq?   [x] (isinstance x #(hytuple hylist)))
   (defn hydict?  [x] (isinstance x hydict))
   (defn hyset?   [x] (isinstance x hyset))
   (defn hystr?   [x] (isinstance x hystr))
-  (defn hybytes? [x] (isinstance x hybytes)))
+  (defn hybytes? [x] (isinstance x hybytes))
+  (defn hyseq?   [x] (isinstance x #(hytuple hylist)))
+  (defn hycoll?  [x] (isinstance x #(hytuple hylist hydict hyset))))
 
 
 ;;; functools
@@ -363,16 +372,16 @@
                                        _ (raise IndexError))
         ls (->> (batched bindings 2) (ap-map (let [#(l r) it] l)) list)]
     (assert (all (map symbol? ls)))
-    (defn recur-replace [form]
+    (defn recur-expand [form]
       (if (sexp? form)
           (let [#(x #* xs) form]
             (if (= x 'recur)
                 `(do
                    ~@(when ls `((setv #(~@ls) #(~@xs))))
                    (continue))
-                (sexp (map recur-replace form))))
+                (sexp (map recur-expand form))))
           form))
-    (let [form `(while True (return ~(recur-replace form)))]
+    (let [form `(while True (return ~(recur-expand form)))]
       (when bindings
         (setv form `(let ~bindings ~form)))
       (if async?
